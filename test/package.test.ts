@@ -18,6 +18,7 @@ test("package allowlist excludes runtime state and compiled tests", async () => 
     "data/catalog.json",
     "data/skills",
     "examples",
+    "cordis.patch.yml",
     "README.md",
     "LICENSE",
   ]);

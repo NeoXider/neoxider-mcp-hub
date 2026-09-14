@@ -1,10 +1,19 @@
 {
   "name": "@neoxider/mcp-hub",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A lazy MCP and skill capability broker for DeepSeek Harness and other MCP clients",
   "type": "module",
   "private": false,
   "license": "MIT",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "mcp",
+    "model-context-protocol",
+    "lazy-loading",
+    "token-optimization",
+    "skills"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/NeoXider/neoxider-mcp-hub.git"
@@ -20,16 +29,34 @@
     "capability-hub-client": "dist/src/client.js",
     "capability-hub-harness-smoke": "dist/src/harness-smoke.js"
   },
+  "main": "./dist/src/dsh-plugin.js",
+  "exports": {
+    ".": "./dist/src/dsh-plugin.js",
+    "./package.json": "./package.json"
+  },
   "files": [
     "dist/src",
     "data/catalog.json",
     "data/skills",
     "examples",
+    "cordis.patch.yml",
     "README.md",
     "LICENSE"
   ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "catalog": {
+      "category": "integration",
+      "summary": {
+        "en": "One stable tool instead of every MCP schema you own: a lazy capability broker with measured context savings.",
+        "zh": "把全部 MCP 工具收敛为一个常驻工具：按需唤醒的懒能力代理，上下文节省均有实测数据。"
+      },
+      "capabilities": ["mcp", "lazy-loading", "token-optimization", "skills"]
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm run build && node --test dist/test/*.test.js",
     "start": "node dist/src/server.js --catalog data/catalog.json --state data/state",
@@ -47,7 +74,14 @@
     "@modelcontextprotocol/sdk": "1.30.0",
     "zod": "4.1.12"
   },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "^0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
   "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@deepseek-ai/dsh-tools": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "3.18.2",
     "@playwright/mcp": "0.0.79",
     "@types/node": "24.10.1",
     "gpt-tokenizer": "^4.0.0",

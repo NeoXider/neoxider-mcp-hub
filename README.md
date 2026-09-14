@@ -12,7 +12,7 @@
   <img alt="MCP" src="https://img.shields.io/badge/MCP-1.30-8b79ff" />
   <img alt="Context saved" src="https://img.shields.io/badge/context-93.2%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
-  <a href="CHANGELOG.md"><img alt="Changelog" src="https://img.shields.io/badge/changelog-0.6.0-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Changelog" src="https://img.shields.io/badge/changelog-0.7.0-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -243,7 +243,25 @@ The default catalog contains only a bundled echo MCP and an example ML skill. Te
 
 ## DeepSeek Harness setup
 
-Build the hub, then merge [`examples/dsh/cordis.patch.yml`](examples/dsh/cordis.patch.yml) into the active Harness Web profile and adjust the absolute repository path. Restart Harness.
+Install the published bundle — no paths to edit, no build on your machine:
+
+```powershell
+dsh plugin --profile web add https://github.com/NeoXider/neoxider-mcp-hub/releases/download/v0.7.0/neoxider-mcp-hub-0.7.0.tgz
+```
+
+Restart Harness. The hub runs inside the host process as one native model-facing tool:
+
+```text
+capability_hub
+```
+
+The catalog and state default to the installed package's `data/` directory. To keep
+them elsewhere, set the row's `catalogPath` / `stateDir` Config in your profile's
+`cordis.patch.yml`.
+
+The manual alternative is a stdio child through the in-box MCP client: build the hub,
+then merge [`examples/dsh/cordis.patch.yml`](examples/dsh/cordis.patch.yml) into the
+active Harness Web profile and adjust the absolute repository path. Restart Harness.
 
 ```powershell
 pnpm build

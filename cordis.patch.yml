@@ -1,0 +1,8 @@
+# DSH bundle layer for @neoxider/mcp-hub (see package.json "dsh.bundle").
+# Registers the hub as one native model-facing tool, `capability_hub`, running
+# inside the host process: no child process to spawn, no absolute paths to edit.
+# The catalog and state default to this package's data/ directory; override them
+# through the row's Config (catalogPath, stateDir) if you keep them elsewhere.
+- insert:
+    - id: capability-hub
+      name: '@neoxider/mcp-hub'

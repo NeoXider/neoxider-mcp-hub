@@ -5,6 +5,31 @@ All notable changes to DeepSeek Capability Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-14
+
+### Added
+
+- **A native DeepSeek Harness bundle** (`src/dsh-plugin.ts`, `cordis.patch.yml`,
+  `dsh.bundle` in `package.json`). The hub now registers as one native
+  model-facing tool, `capability_hub`, running inside the host process — no
+  child process to spawn and no absolute paths to edit, so the same package
+  installs on Windows, macOS and Linux. Install from the release tarball with
+  `dsh plugin --profile web add`, restart Harness, and start with
+  `{"action":"search","query":"..."}`. The catalog and state default to the
+  installed package's `data/` directory and stay overridable through the row's
+  `catalogPath` / `stateDir` Config. The previous stdio-child setup via the
+  in-box MCP client remains available through `examples/dsh/cordis.patch.yml`
+  for manual installs.
+
+### Changed
+
+- The MCP wire helpers (`HubWireInput`, `decodeWireInput`, `argumentValue`) moved
+  from `server.ts` to `src/wire.ts`, and the resident-description builder
+  (`describeHub`) to `src/description.ts`, so the stdio server and the native
+  plugin share one implementation. No behavior change: the full suite passes
+  unmodified, and a new `test/dsh-plugin.test.ts` pins the native tool's action
+  enum against the MCP wire shape so the two surfaces cannot drift.
+
 ## [0.6.0] - 2026-08-28
 
 ### Added
