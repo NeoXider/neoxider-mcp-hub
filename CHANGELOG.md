@@ -5,6 +5,21 @@ All notable changes to DeepSeek Capability Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-15
+
+### Added
+
+- **Structured call arguments.** `action: "call"` now also accepts the child
+tool's arguments as a structured object under `arguments` (advertised in
+`hubInputShape` and the native plugin parameters), instead of only the
+JSON-encoded `payloadJson` string. The MCP SDK strips unknown keys against
+the advertised shape before the handler runs, so models sending structured
+objects previously arrived with empty arguments and failed child validation;
+declaring the field makes it survive both the stdio and native paths.
+Passing both `arguments` and `payloadJson` is an error, as is using
+`arguments` with any action other than `call`. New wire unit tests plus an
+end-to-end leg proving the object survives SDK input validation.
+
 ## [0.7.0] - 2026-09-14
 
 ### Added
