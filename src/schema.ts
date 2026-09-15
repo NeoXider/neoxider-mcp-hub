@@ -114,14 +114,23 @@ export const hubInputShape = {
   // resident cost put 288 of it in this input schema, more than the catalog listing and
   // the description put together, which made the redundancy the largest target left.
   //
-  // This is a breaking change with no compatibility shim, because the MCP SDK strips
-  // unknown keys against this shape before the handler ever runs — a shim could not fire.
+  // `call` arguments additionally accept the structured `arguments` object below. It is
+  // advertised here rather than shimmed, because the MCP SDK strips unknown keys
+  // against this shape before the handler ever runs — only a declared field survives.
   payloadJson: z
     .string()
     .max(200_000)
     .optional()
     .describe(
       'JSON object for the action: arguments for call (e.g. {"url":"https://example.com"}), non-secret whitelisted configuration for configure and enable, or a capability proposal for propose.',
+    ),
+  // Structured form of the call arguments. `z.unknown()` keeps the projected JSON
+  // Schema a bare object, so this costs one property instead of a recursive union.
+  arguments: z
+    .record(z.string(), z.unknown())
+    .optional()
+    .describe(
+      'Call arguments as an object (e.g. {"url":"https://example.com"}). Prefer this over payloadJson for action call; the two must not be combined.',
     ),
   includeSchema: z
     .boolean()

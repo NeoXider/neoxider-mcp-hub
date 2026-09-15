@@ -59,6 +59,18 @@ test("outer MCP exposes exactly one tool and proxies through it", async () => {
       },
     });
     assert.match(JSON.stringify(called), /wire-ok/);
+
+    // The structured object must survive the SDK's input validation unstripped.
+    const structured = await client.callTool({
+      name: "capability_hub",
+      arguments: {
+        action: "call",
+        name: "wire-echo",
+        tool: "echo",
+        arguments: { text: "structured-ok" },
+      },
+    });
+    assert.match(JSON.stringify(structured), /structured-ok/);
   } finally {
     await client.close();
   }

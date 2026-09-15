@@ -92,6 +92,12 @@ export async function apply(
           description:
             'JSON object for the action: arguments for call (e.g. {"url":"https://example.com"}), non-secret whitelisted configuration for configure and enable, or a capability proposal for propose.',
         },
+        arguments: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            'Call arguments as an object (e.g. {"url":"https://example.com"}). Prefer this over payloadJson for action call; the two must not be combined.',
+        },
         includeSchema: {
           type: "boolean",
           description: "Include full child tool schemas. Leave false unless arguments cannot be inferred.",

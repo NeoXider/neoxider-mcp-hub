@@ -281,7 +281,7 @@ Start with:
 
 ## Model-facing contract
 
-The public schema is intentionally flat so constrained-decoding engines such as LM Studio can compile it reliably. Arbitrary child arguments travel as JSON strings.
+The public schema is intentionally flat so constrained-decoding engines such as LM Studio can compile it reliably. Call arguments travel as a structured `arguments` object; the remaining payloads (configuration, proposals) travel as JSON strings.
 
 Discover and call a tool:
 
@@ -294,7 +294,7 @@ Discover and call a tool:
   "action": "call",
   "name": "web-search-neo",
   "tool": "web_info",
-  "payloadJson": "{\"topic\":\"search_status\"}"
+  "arguments": {"topic": "search_status"}
 }
 ```
 
@@ -307,7 +307,7 @@ Available actions:
 | `configure` | Set allowlisted non-secret values through `payloadJson` |
 | `enable` / `disable` | Start or stop one trusted MCP |
 | `tools` | List child tools; schemas remain optional |
-| `call` | Proxy one child tool call through `payloadJson` |
+| `call` | Proxy one child tool call through the `arguments` object (`payloadJson` also works, but the two must not be combined) |
 | `skill.load` | Load one approved local skill body |
 | `propose` | Store an untrusted proposal from `payloadJson` |
 | `proposals` | List pending proposals |

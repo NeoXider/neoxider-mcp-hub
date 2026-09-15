@@ -12,8 +12,10 @@ function argumentValue(flag: string): string | undefined {
 
 // The three payload fields collapsed into `payloadJson` in 0.5.0. This CLI still accepts
 // the readable object forms, because a human typing a request should not have to escape
-// JSON inside JSON, and it still accepts the retired *Json spellings — unlike the server,
-// which cannot, since the MCP SDK strips unknown keys before the handler sees them.
+// JSON inside JSON, and it still accepts the retired *Json spellings. They are folded
+// into `payloadJson` here before sending; the server additionally advertises a
+// structured `arguments` object for action call, which the MCP SDK passes through
+// untouched precisely because it is a declared field rather than an unknown key.
 function normalizeConvenienceFields(input: Record<string, unknown>): Record<string, unknown> {
   const normalized = { ...input };
   for (const source of ["arguments", "config", "entry"] as const) {
