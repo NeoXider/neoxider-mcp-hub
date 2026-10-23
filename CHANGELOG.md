@@ -5,6 +5,14 @@ All notable changes to DeepSeek Capability Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-10-24
+
+### Security
+
+- `@modelcontextprotocol/sdk` 1.30.0 -> 1.32.2 (GHSA for its OAuth client, fixed in 1.31.0),
+  and its transitive `proxy-addr`, `fast-uri`, `hono`, `ip-address` and `qs` moved to
+  their patched releases. `pnpm audit --prod` is clean again; it had failed CI since 0.8.0.
+
 ## [0.9.0] - 2026-10-24
 
 ### Added

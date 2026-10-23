@@ -12,7 +12,7 @@
   <img alt="MCP" src="https://img.shields.io/badge/MCP-1.30-8b79ff" />
   <img alt="Context saved" src="https://img.shields.io/badge/context-93.2%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
-  <a href="CHANGELOG.md"><img alt="Changelog" src="https://img.shields.io/badge/changelog-0.9.0-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Changelog" src="https://img.shields.io/badge/changelog-0.9.1-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
