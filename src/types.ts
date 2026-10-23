@@ -66,7 +66,8 @@ export interface HubInput {
     | "skill.load"
     | "propose"
     | "proposals"
-    | "catalog.reload";
+    | "catalog.reload"
+    | "page";
   query?: string;
   kind?: "mcp" | "skill";
   name?: string;
@@ -75,6 +76,7 @@ export interface HubInput {
   config?: Record<string, JsonValue>;
   includeSchema?: boolean;
   entry?: CapabilityEntry;
+  cursor?: string;
 }
 
 export interface ProposalDocument {

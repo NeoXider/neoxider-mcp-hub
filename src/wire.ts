@@ -10,6 +10,7 @@ export interface HubWireInput {
   payloadJson?: string;
   arguments?: Record<string, unknown>;
   includeSchema?: boolean;
+  cursor?: string;
 }
 // `argumentsJson`, `configJson` and `entryJson` were replaced by `payloadJson` in 0.5.0.
 // They stay unhandled on purpose: the MCP SDK validates the incoming object against
@@ -111,6 +112,7 @@ export function decodeWireInput(input: HubWireInput): HubInput {
       ? {}
       : { entry: capabilityEntrySchema.parse(JSON.parse(entryJson)) as CapabilityEntry }),
     ...(input.includeSchema === undefined ? {} : { includeSchema: input.includeSchema }),
+    ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
   };
 }
 

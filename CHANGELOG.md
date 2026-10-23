@@ -5,6 +5,35 @@ All notable changes to DeepSeek Capability Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-10-24
+
+### Added
+
+- **Paged call results, for local prompt caches.** A child result longer than
+  7,500 characters is returned as page 1 with a footer naming the cursor of the
+  next page, and the rest is read with the new action `page` and the new `cursor`
+  field. DeepSeek Harness's tool-result pruner rewrites results above 8,192
+  characters in place once the window fills, and every token after a rewritten
+  message misses the prompt cache of a local server (Strata, llama.cpp), so the
+  whole tail was read again. Pages stay below that threshold, split at line ends,
+  deterministically. `--page-chars` / `CAPABILITY_HUB_PAGE_CHARS` / `pageChars`
+  set the size; `0` restores the single result. The last 32 paged results are kept.
+- **Near-miss suggestions for a wrong tool name.** `call` with a tool the server
+  does not have now answers `did you mean ...?` with up to eight close names
+  (containment first, then a shared word), or the first names on the server.
+
+### Changed
+
+- **Tool description.** It now states the shortest path (`call` starts the server
+  itself; `tools` only when the name is unknown) and how to continue a paged
+  result, and documents that it carries no runtime state, so it never changes
+  within a session.
+- The MCP server reports the package version instead of a fixed `0.1.0`.
+
+### Fixed
+
+- The README changelog badge, which still named 0.7.0 and failed the package test.
+
 ## [0.8.0] - 2026-09-15
 
 ### Added

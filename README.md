@@ -12,7 +12,7 @@
   <img alt="MCP" src="https://img.shields.io/badge/MCP-1.30-8b79ff" />
   <img alt="Context saved" src="https://img.shields.io/badge/context-93.2%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
-  <a href="CHANGELOG.md"><img alt="Changelog" src="https://img.shields.io/badge/changelog-0.7.0-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Changelog" src="https://img.shields.io/badge/changelog-0.9.0-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -312,6 +312,34 @@ Available actions:
 | `propose` | Store an untrusted proposal from `payloadJson` |
 | `proposals` | List pending proposals |
 | `catalog.reload` | Reload approved catalog state |
+| `page` | Read the next page of a long call result, with the `cursor` printed on its last line |
+
+A wrong tool name in `call` comes back with the closest names on that server
+(`did you mean "web_info", "web_action"?`), so a typo costs one retry instead of a
+`tools` round trip.
+
+## Prompt-cache friendly by design
+
+Local servers such as Strata and llama.cpp reuse the longest unchanged *start* of the
+prompt, so anything that rewrites an earlier part of the conversation makes them read the
+whole rest again. The hub keeps its part of the prompt stable:
+
+- **The resident description and schema hold no state.** No list of running servers, no
+  counts, no times — only the catalog, which changes when you edit it, never mid-session.
+  `status` is an action, not part of the description.
+- **Long results are paged.** DeepSeek Harness's tool-result pruner rewrites any tool
+  result longer than 8,192 characters once the window fills up, which breaks the cache
+  from that message on. The hub returns at most 7,500 characters per result and keeps the
+  rest for `{"action":"page","cursor":"r1:2"}`. Paging is deterministic: the same text
+  always splits the same way. Pages are held in memory for the last 32 paged results.
+- Set the page size with `--page-chars N` (or `CAPABILITY_HUB_PAGE_CHARS`, or
+  `pageChars` in the native bundle's config); `0` turns paging off.
+
+Measured on Strata 0.2.3 (Qwen3.8-Flash-Next Coder IQ1_M, 128K, one slot) through DeepSeek
+Harness 0.2.1-rc.2 and this hub driving web-search-neo, with a long page that came back in
+two pages: every request after the first of a session reused the cached start and read only
+what was new — 7,701 of 7,774, 10,367 of 12,246, 16,442 of 18,328 tokens — and the next turn
+of the same session, a new process resuming it, reused 20,006 of 20,067.
 
 ## Real integration examples
 

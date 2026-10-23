@@ -32,6 +32,17 @@ const MAX_FIELD_CHARS = 400;
 const MAX_TAGS = 10;
 const MAX_TAG_CHARS = 60;
 const MAX_CALL_RESULT_CHARS = 200_000;
+// DeepSeek Harness's tool-result pruner rewrites any tool result longer than 8,192
+// characters once the window comes under pressure: it swaps the middle for a marker in a
+// message that was already sent. Every token after that point then no longer matches what
+// a local server such as Strata or llama.cpp holds in its prompt cache, so the whole tail
+// of the conversation is read again on the next request. A result that never exceeds the
+// threshold is never rewritten, so long answers are served in pages below it.
+export const DEFAULT_PAGE_CHARS = 7_500;
+// Pages are kept for the life of the hub process, bounded so a long session cannot grow
+// without limit: the oldest result is dropped first.
+const MAX_PAGED_RESULTS = 32;
+const MAX_SUGGESTIONS = 8;
 // Setting any of these makes the child interpreter load code before the server's own
 // entry point runs, so a value reaching one of them is arbitrary code execution — no
 // matter how innocuous the catalog key that produced it looks.
@@ -108,13 +119,66 @@ function scalarConfig(config: Record<string, JsonValue>): Record<string, string>
   );
 }
 
+interface PagedResult {
+  readonly pages: string[];
+  readonly totalChars: number;
+}
+
+export interface CapabilityHubOptions {
+  // Characters per page of a long call result; 0 turns paging off (the old behaviour:
+  // one result of up to MAX_CALL_RESULT_CHARS).
+  pageChars?: number;
+}
+
+// Splits at a line break near the end of each page when there is one, so a page rarely
+// ends mid-word or mid-line. Deterministic on purpose: the same text always pages the same
+// way, which keeps a replayed conversation byte-identical for the prompt cache.
+export function splitPages(text: string, pageChars: number): string[] {
+  const pages: string[] = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + pageChars, text.length);
+    if (end < text.length) {
+      const newline = text.lastIndexOf("\n", end);
+      if (newline > start + pageChars * 0.8) end = newline + 1;
+    }
+    pages.push(text.slice(start, end));
+    start = end;
+  }
+  return pages;
+}
+
+// Names close to a mistyped one: substring matches first, then names sharing a word.
+export function suggestNames(wanted: string, names: readonly string[], limit = MAX_SUGGESTIONS): string[] {
+  const needle = wanted.toLowerCase();
+  const words = needle.split(/[^a-z0-9]+/).filter((word) => word.length > 2);
+  const scored = names
+    .map((name) => {
+      const lower = name.toLowerCase();
+      const score = lower.includes(needle) || needle.includes(lower)
+        ? 2
+        : words.some((word) => lower.includes(word)) ? 1 : 0;
+      return { name, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name));
+  return scored.slice(0, limit).map((item) => item.name);
+}
+
 export class CapabilityHub {
   readonly repository: CatalogRepository;
+  readonly pageChars: number;
   readonly #live = new Map<string, LiveMcp>();
   readonly #starting = new Map<string, Promise<JsonValue>>();
+  readonly #paged = new Map<string, PagedResult>();
+  #pageSequence = 0;
 
-  constructor(repository: CatalogRepository) {
+  constructor(repository: CatalogRepository, options: CapabilityHubOptions = {}) {
     this.repository = repository;
+    const pageChars = options.pageChars ?? DEFAULT_PAGE_CHARS;
+    if (!Number.isInteger(pageChars) || pageChars < 0) throw new Error("pageChars must be a non-negative integer");
+    // A page smaller than its own footer would make paging slower than reading the text.
+    this.pageChars = pageChars === 0 ? 0 : Math.max(pageChars, 1_000);
   }
 
   async execute(input: HubInput, signal: AbortSignal): Promise<CallToolResult> {
@@ -144,6 +208,8 @@ export class CapabilityHub {
         return await this.listProposals();
       case "catalog.reload":
         return await this.reloadCatalog();
+      case "page":
+        return this.page(input.cursor);
     }
   }
 
@@ -318,7 +384,13 @@ export class CapabilityHub {
     const live = this.#live.get(name);
     if (!live) throw new Error(`Failed to enable "${name}"`);
     if (!live.tools.some((tool) => tool.name === toolName)) {
-      throw new Error(`MCP "${name}" has no tool "${toolName}"; call action "tools" to refresh names`);
+      // Listing the near misses saves the model a "tools" round trip for the common case
+      // of a slightly wrong name (web_fetch for web_action, a missing prefix, a typo).
+      const near = suggestNames(toolName, live.tools.map((tool) => tool.name));
+      const hint = near.length > 0
+        ? `did you mean ${near.map((item) => JSON.stringify(item)).join(", ")}?`
+        : `its tools are ${live.tools.slice(0, MAX_SUGGESTIONS * 2).map((tool) => JSON.stringify(tool.name)).join(", ")}`;
+      throw new Error(`MCP "${name}" has no tool "${toolName}"; ${hint}`);
     }
     let result;
     try {
@@ -343,9 +415,72 @@ export class CapabilityHub {
       throw new Error(`MCP "${name}" stopped responding during "${toolName}" (${detail}); call action "enable" to restart it`);
     }
     if (!("content" in result) || !Array.isArray(result.content)) {
-      return textResult(truncate(JSON.stringify("toolResult" in result ? result.toolResult : result), MAX_CALL_RESULT_CHARS));
+      return this.pageResult(
+        textResult(truncate(JSON.stringify("toolResult" in result ? result.toolResult : result), MAX_CALL_RESULT_CHARS)),
+      );
     }
-    return this.capResult(result as CallToolResult);
+    return this.pageResult(this.capResult(result as CallToolResult));
+  }
+
+  // A result whose text fits one page goes through untouched. A longer one is cut into
+  // pages: the first is returned now with a footer naming the cursor of the next, and the
+  // rest wait in memory for action "page". Images and other non-text parts stay on page 1.
+  private pageResult(result: CallToolResult): CallToolResult {
+    if (this.pageChars === 0) return result;
+    const isText = (part: CallToolResult["content"][number]): part is { type: "text"; text: string } =>
+      part.type === "text" && typeof (part as { text?: unknown }).text === "string";
+    const text = result.content.filter(isText).map((part) => part.text).join("\n");
+    if (text.length <= this.pageChars) return result;
+    const pages = splitPages(text, this.pageChars);
+    this.#pageSequence += 1;
+    const id = `r${String(this.#pageSequence)}`;
+    this.#paged.set(id, { pages, totalChars: text.length });
+    while (this.#paged.size > MAX_PAGED_RESULTS) {
+      const oldest = this.#paged.keys().next().value;
+      if (oldest === undefined) break;
+      this.#paged.delete(oldest);
+    }
+    const others = result.content.filter((part) => !isText(part));
+    return {
+      ...(result.isError === undefined ? {} : { isError: result.isError }),
+      content: [{ type: "text", text: this.pageText(id, 1) }, ...others],
+      structuredContent: { paged: true, cursor: `${id}:2`, pages: pages.length, totalChars: text.length },
+    };
+  }
+
+  private pageText(id: string, number: number): string {
+    const paged = this.#paged.get(id);
+    if (!paged) throw new Error(`Unknown result "${id}"`);
+    const body = paged.pages[number - 1] ?? "";
+    const footer = number < paged.pages.length
+      ? `[capability_hub: page ${String(number)} of ${String(paged.pages.length)}, ${String(paged.totalChars)} chars in all. ` +
+        `Next page: {"action":"page","cursor":"${id}:${String(number + 1)}"}]`
+      : `[capability_hub: page ${String(number)} of ${String(paged.pages.length)}, the last one.]`;
+    // Always exactly one separator, so the page text is everything before the last line.
+    return `${body}\n${footer}`;
+  }
+
+  page(cursor: string | undefined): CallToolResult {
+    if (!cursor) throw new Error('Action "page" requires cursor, copied from the last line of a paged result');
+    const match = /^(r\d+):(\d+)$/.exec(cursor.trim());
+    if (!match) throw new Error(`Cursor "${cursor}" is not of the form r<number>:<page>, as printed in a result footer`);
+    const id = match[1] as string;
+    const number = Number(match[2]);
+    const paged = this.#paged.get(id);
+    if (!paged) {
+      throw new Error(
+        `Result "${id}" is no longer held (the hub keeps its last ${String(MAX_PAGED_RESULTS)} paged results until it restarts); repeat the call`,
+      );
+    }
+    if (number < 1 || number > paged.pages.length) {
+      throw new Error(`Result "${id}" has pages 1 to ${String(paged.pages.length)}; page ${String(number)} does not exist`);
+    }
+    return textResult(this.pageText(id, number), {
+      cursor: number < paged.pages.length ? `${id}:${String(number + 1)}` : null,
+      page: number,
+      pages: paged.pages.length,
+      totalChars: paged.totalChars,
+    });
   }
 
   // A child's answer went straight through: one measured reply was 8.4 MB, about two
@@ -448,6 +583,7 @@ export class CapabilityHub {
     const clients = [...this.#live.values()];
     this.#live.clear();
     this.#starting.clear();
+    this.#paged.clear();
     await Promise.allSettled(clients.map(async (live) => await live.client.close()));
   }
 

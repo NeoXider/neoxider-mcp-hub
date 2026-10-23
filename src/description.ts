@@ -1,8 +1,14 @@
 import type { CatalogRepository } from "./catalog.js";
 
+// The description is part of the system prompt on every request, and a local server's
+// prompt cache only survives as long as that prefix stays byte-identical. So it holds no
+// state at all — not which servers are running, not counts, not times — only the catalog,
+// which changes when the operator edits it and never during a conversation.
 export const BASE_DESCRIPTION =
   "Search and inspect a compact catalog, enable a trusted MCP only when needed, list its tools, proxy a tool call, or load one skill body. " +
-  'Action "tools" starts a stopped capability by itself, so "enable" is only for starting one deliberately. ' +
+  'Shortest path: action "call" with name, tool and arguments starts the server by itself; ' +
+  'use action "tools" (optionally with a query) first only when you do not know the tool name, and "enable" only to start one deliberately. ' +
+  'Long results arrive in pages: continue with action "page" and the cursor printed on the last line. ' +
   "Avoid includeSchema unless you need the argument shape. Third-party proposals require human approval outside this MCP.";
 
 // Roughly four characters per token; a hard character budget keeps the resident cost

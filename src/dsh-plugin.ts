@@ -17,11 +17,13 @@ export const inject = ["tools"];
 export const Config = z.object({
   catalogPath: z.string().required(false),
   stateDir: z.string().required(false),
+  pageChars: z.natural().required(false),
 });
 
 export interface CapabilityHubPluginConfig {
   catalogPath?: string;
   stateDir?: string;
+  pageChars?: number;
 }
 
 // A hub call fans out into child MCP servers and skill loads, so the ceiling sits well
@@ -49,7 +51,7 @@ export async function apply(
     config.stateDir ?? path.join(packageDir, "data", "state"),
   );
   await repository.load();
-  const hub = new CapabilityHub(repository);
+  const hub = new CapabilityHub(repository, config.pageChars === undefined ? {} : { pageChars: config.pageChars });
   const registry = (ctx as unknown as { tools: ToolRegistry }).tools;
   registry.register(
     defineTool({
@@ -72,6 +74,7 @@ export async function apply(
             "propose",
             "proposals",
             "catalog.reload",
+            "page",
           ],
           description: "Operation to perform.",
         },
@@ -101,6 +104,10 @@ export async function apply(
         includeSchema: {
           type: "boolean",
           description: "Include full child tool schemas. Leave false unless arguments cannot be inferred.",
+        },
+        cursor: {
+          type: "string",
+          description: "For action page: the cursor from a paged result's last line.",
         },
       },
       output: {

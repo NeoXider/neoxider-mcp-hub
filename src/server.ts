@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -24,8 +25,11 @@ async function main(): Promise<void> {
 
   const repository = new CatalogRepository(catalogPath, stateDir);
   await repository.load();
-  const hub = new CapabilityHub(repository);
-  const server = new McpServer({ name: "neoxider-mcp-hub", version: "0.1.0" });
+  // --page-chars wins over CAPABILITY_HUB_PAGE_CHARS; 0 turns paging off.
+  const pageSetting = argumentValue("--page-chars") ?? process.env.CAPABILITY_HUB_PAGE_CHARS;
+  const hub = new CapabilityHub(repository, pageSetting === undefined ? {} : { pageChars: Number(pageSetting) });
+  const { version } = JSON.parse(await readFile(path.join(packageDir, "package.json"), "utf8")) as { version: string };
+  const server = new McpServer({ name: "neoxider-mcp-hub", version });
   server.server.onclose = () => void hub.close();
 
   server.registerTool(

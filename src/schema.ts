@@ -102,6 +102,7 @@ export const hubInputShape = {
       "propose",
       "proposals",
       "catalog.reload",
+      "page",
     ])
     .describe("Operation to perform."),
   query: z.string().max(500).optional().describe("Search text. With action search it filters the catalog; with action tools it filters that server's tool names and descriptions."),
@@ -136,4 +137,7 @@ export const hubInputShape = {
     .boolean()
     .optional()
     .describe("Include full child tool schemas. Leave false unless arguments cannot be inferred."),
+  // One field for paging rather than a result id plus a page number: every property here
+  // is paid for in every prompt, and the cursor is copied verbatim from a result footer.
+  cursor: z.string().max(80).optional().describe("For action page: the cursor from a paged result's last line."),
 };
