@@ -1,9 +1,74 @@
 # Changelog
 
-All notable changes to DeepSeek Capability Hub are documented here.
+All notable changes to NeoXider MCP Hub are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.10.0] - 2026-10-27
+
+### Fixed
+
+- **Skills and long results reached OpenCode as a stub.** OpenCode renders a tool
+  result's `structuredContent` and ignores its text, while DeepSeek Harness does the
+  opposite. `skill.load` returned the body only as text, so OpenCode showed
+  `{"name":…,"source":…}` and nothing else; a paged `call` result and every `page`
+  showed only `{"paged":true,"cursor":…}`. The body now travels in both fields:
+  `instructions` for `skill.load`, `text` for page 1 and for `page`. Harness reads the
+  text and is unchanged.
+- **`disable` no longer fails when the child dies while closing.** The capability was
+  already off the live map, so the error told the model to retry something that had
+  worked.
+- **A failed `tools/list_changed` refresh no longer escapes.** The previous tool list is
+  kept and the failure is logged to stderr.
+- **Pages and truncated results no longer cut an emoji in half.** A cut between the two
+  halves of a surrogate pair left a replacement character on each side.
+- **The client's own quick-start command failed in Windows PowerShell 5.1.** It strips
+  the double quotes from `--json '{"action":"search"}'`, so node received
+  `{action:search}`. The client now takes `--action`, `--query`, `--kind`, `--name`,
+  `--tool` and `--cursor` as plain flags, and a request that is not valid JSON says to
+  use `--input request.json` or those flags instead of printing a stack trace.
+- **`capability-hub-admin approve` defaulted to the working directory.** Run from any
+  other folder it looked for `data/` there, not where the server reads, so an approval
+  could not land in the server's state. Its defaults are now the server's: the package's
+  `data/catalog.json` and `data/state`.
+- **A flag followed by another flag took it as its value.** `--catalog --state dir` read
+  `--state` as a catalog path.
+- **A bad `--page-chars` or `CAPABILITY_HUB_PAGE_CHARS` says what is wrong.** It used to
+  exit with a stack trace from the constructor. An empty value is ignored instead of
+  silently turning paging off.
+
+### Security
+
+- `zod` 4.1.12 -> 4.6.7 (memory exhaustion on oversized constrained collections, fixed
+  in 4.6.6) and the transitive `body-parser` 2.3.0 -> 2.4.0 (denial of service through
+  trailing bytes after a compressed request body, fixed in 2.4.0; it comes with the MCP
+  SDK's HTTP server, which this hub does not run). `pnpm audit --prod` had started to
+  fail CI again; it is clean.
+
+### Changed
+
+- **`tools` with a `query` matches words, not the whole phrase.** `"browser click"` now
+  finds `browser_click`. Every word must appear; when no tool holds them all, the tools
+  that hold some come back best first with a note saying so, instead of an empty list.
+  `search` over the catalog already worked this way.
+
+### Documentation
+
+- README rewritten around what the project is for: a cover and four illustrations,
+  setup for OpenCode, Claude Code, Claude Desktop and Cursor besides DeepSeek Harness,
+  how to share one catalog between clients, troubleshooting, and a comparison with the
+  neighbouring projects built from their own READMEs. The measurements are unchanged.
+- The tool-selection accuracy table rendered broken: its header had seven columns and
+  its separator six.
+- The model-in-the-loop smoke documentation moved to `docs/harness-smoke.md`.
+- The product is called NeoXider MCP Hub; the tool stays `capability_hub`.
+
+### Repository
+
+- Pushing a `v*` tag now runs the tests, builds the Harness bundle and attaches it to a
+  GitHub release. Releases 0.8.0 to 0.9.1 had no bundle attached.
+- Two committed build artifacts (`*.tgz`) were removed and `*.tgz` is ignored.
 
 ## [0.9.1] - 2026-10-24
 

@@ -20,7 +20,14 @@ test("package allowlist excludes runtime state and compiled tests", async () => 
     "examples",
     "cordis.patch.yml",
     "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
     "LICENSE",
   ]);
-  assert.match(readme, new RegExp(`changelog-${manifest.version?.replaceAll(".", "\\.")}`));
+  assert.match(readme, new RegExp(`badge/version-${manifest.version?.replaceAll(".", "\\.")}-`));
+  assert.match(
+    await readFile(path.join(packageRoot, "CHANGELOG.md"), "utf8"),
+    new RegExp(`^## \\[${manifest.version?.replaceAll(".", "\\.")}\\]`, "m"),
+    "the changelog has a section for the current version, which the release workflow publishes",
+  );
 });

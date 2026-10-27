@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { CatalogRepository } from "./catalog.js";
-
-function argumentValue(flag: string): string | undefined {
-  const index = process.argv.indexOf(flag);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
+import { argumentValue } from "./wire.js";
 
 function positionalArguments(): string[] {
   const valueFlags = new Set(["--state", "--catalog"]);
@@ -24,10 +21,11 @@ function positionalArguments(): string[] {
 
 async function main(): Promise<void> {
   const [command, id] = positionalArguments();
-  const stateDir = path.resolve(argumentValue("--state") ?? path.join(process.cwd(), "data", "state"));
-  const catalogPath = path.resolve(
-    argumentValue("--catalog") ?? path.join(process.cwd(), "data", "catalog.json"),
-  );
+  // The same defaults as the server and the client. Defaulting to the working directory
+  // meant an approval typed from anywhere else landed in a state the server never reads.
+  const packageDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+  const stateDir = path.resolve(argumentValue("--state") ?? path.join(packageDir, "data", "state"));
+  const catalogPath = path.resolve(argumentValue("--catalog") ?? path.join(packageDir, "data", "catalog.json"));
 
   if (command !== "approve" || !id) {
     throw new Error(

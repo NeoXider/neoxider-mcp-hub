@@ -141,11 +141,45 @@ export function splitPages(text: string, pageChars: number): string[] {
     if (end < text.length) {
       const newline = text.lastIndexOf("\n", end);
       if (newline > start + pageChars * 0.8) end = newline + 1;
+      const safe = safeEnd(text, end);
+      if (safe > start) end = safe;
     }
     pages.push(text.slice(start, end));
     start = end;
   }
   return pages;
+}
+
+// A cut between the two halves of a surrogate pair leaves a replacement character on each
+// side where one emoji stood, and the model cannot stitch it back together across pages.
+function safeEnd(text: string, end: number): number {
+  if (end > 0 && end < text.length) {
+    const code = text.charCodeAt(end - 1);
+    if (code >= 0xd800 && code <= 0xdbff) return end - 1;
+  }
+  return end;
+}
+
+// Words, not the whole phrase: "browser click" has to find browser_click. Every word must
+// appear; when no tool holds them all, the tools holding some come back best first, because
+// an empty answer is a dead end for a small model that worded its query loosely.
+export function matchTools<T extends { name: string; description?: string | undefined }>(
+  tools: readonly T[],
+  query: string | undefined,
+): { matched: T[]; partial: boolean } {
+  const terms = (query ?? "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (terms.length === 0) return { matched: [...tools], partial: false };
+  const scored = tools.map((tool) => {
+    const text = `${tool.name} ${tool.description ?? ""}`.toLowerCase();
+    return { tool, hits: terms.filter((term) => text.includes(term)).length };
+  });
+  const every = scored.filter((item) => item.hits === terms.length).map((item) => item.tool);
+  if (every.length > 0 || terms.length === 1) return { matched: every, partial: false };
+  const some = scored
+    .filter((item) => item.hits > 0)
+    .sort((left, right) => right.hits - left.hits)
+    .map((item) => item.tool);
+  return { matched: some, partial: some.length > 0 };
 }
 
 // Names close to a mistyped one: substring matches first, then names sharing a word.
@@ -298,8 +332,13 @@ export class CapabilityHub {
     const client = new Client({ name: "capability-hub", version: "0.1.0" });
     const live: LiveMcp = { entry, client, tools: [] };
     client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
-      live.tools = await this.collectTools(client);
-      process.stderr.write(`[capability-hub] ${name}: tool catalog refreshed (${live.tools.length})\n`);
+      try {
+        live.tools = await this.collectTools(client);
+        process.stderr.write(`[capability-hub] ${name}: tool catalog refreshed (${live.tools.length})\n`);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`[capability-hub] ${name}: tool catalog refresh failed, keeping the previous list (${detail})\n`);
+      }
     });
 
     const transport = this.createTransport(entry, config) as unknown as Transport;
@@ -329,7 +368,9 @@ export class CapabilityHub {
     const live = this.#live.get(name);
     if (!live) return { disabled: name, wasEnabled: false };
     this.#live.delete(name);
-    await live.client.close();
+    // The entry is already gone from the live map, so a child that dies while closing must
+    // not turn a successful stop into an error the model then tries to retry.
+    await live.client.close().catch(() => undefined);
     return { disabled: name, wasEnabled: true };
   }
 
@@ -339,12 +380,7 @@ export class CapabilityHub {
     if (!live) throw new Error(`Failed to enable "${name}"`);
     // A server with a hundred tools would otherwise dump all of them into context.
     // The query narrows the list first, and the cap bounds the worst case.
-    const needle = query?.trim().toLowerCase();
-    const matched = needle
-      ? live.tools.filter((tool) =>
-          `${tool.name} ${tool.description ?? ""}`.toLowerCase().includes(needle),
-        )
-      : live.tools;
+    const { matched, partial } = matchTools(live.tools, query);
     const limited = matched.slice(0, MAX_TOOL_RESULTS);
     // An empty list has two very different causes that used to look identical: a server
     // that published nothing, and a query that matched nothing. The first is the more
@@ -357,7 +393,9 @@ export class CapabilityHub {
         ? `"${name}" started but published no tools. Its backing application is probably not running; start it and call this action again.`
         : matched.length === 0
           ? `No tool on "${name}" matched ${JSON.stringify(query ?? "")}. Call this action without a query to see all ${String(live.tools.length)}.`
-          : undefined;
+          : partial
+            ? `No tool on "${name}" matched every word of ${JSON.stringify(query ?? "")}; these match some of them, best first.`
+            : undefined;
     return jsonResult({
       server: name,
       tools: limited.map((tool) => ({
@@ -441,10 +479,13 @@ export class CapabilityHub {
       this.#paged.delete(oldest);
     }
     const others = result.content.filter((part) => !isText(part));
+    const first = this.pageText(id, 1);
     return {
       ...(result.isError === undefined ? {} : { isError: result.isError }),
-      content: [{ type: "text", text: this.pageText(id, 1) }, ...others],
-      structuredContent: { paged: true, cursor: `${id}:2`, pages: pages.length, totalChars: text.length },
+      content: [{ type: "text", text: first }, ...others],
+      // OpenCode renders structuredContent only. Without `text` here every paged result
+      // reached it as a bare cursor, with the page itself missing.
+      structuredContent: { paged: true, cursor: `${id}:2`, pages: pages.length, totalChars: text.length, text: first },
     };
   }
 
@@ -475,11 +516,13 @@ export class CapabilityHub {
     if (number < 1 || number > paged.pages.length) {
       throw new Error(`Result "${id}" has pages 1 to ${String(paged.pages.length)}; page ${String(number)} does not exist`);
     }
-    return textResult(this.pageText(id, number), {
+    const pageText = this.pageText(id, number);
+    return textResult(pageText, {
       cursor: number < paged.pages.length ? `${id}:${String(number + 1)}` : null,
       page: number,
       pages: paged.pages.length,
       totalChars: paged.totalChars,
+      text: pageText,
     });
   }
 
@@ -498,7 +541,7 @@ export class CapabilityHub {
         budget -= part.text.length;
         return part;
       }
-      const text = part.text.slice(0, budget);
+      const text = part.text.slice(0, safeEnd(part.text, budget));
       budget = 0;
       truncated = true;
       return { ...part, text };

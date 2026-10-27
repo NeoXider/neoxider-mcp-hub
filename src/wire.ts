@@ -116,7 +116,10 @@ export function decodeWireInput(input: HubWireInput): HubInput {
   };
 }
 
+// A flag followed by another flag has no value: `--catalog --state dir` must not read
+// "--state" as a catalog path.
 export function argumentValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
-  return index >= 0 ? process.argv[index + 1] : undefined;
+  const value = index >= 0 ? process.argv[index + 1] : undefined;
+  return value === undefined || value.startsWith("--") ? undefined : value;
 }

@@ -1,7 +1,7 @@
 {
   "name": "@neoxider/mcp-hub",
-  "version": "0.9.1",
-  "description": "A lazy MCP and skill capability broker for DeepSeek Harness and other MCP clients",
+  "version": "0.10.0",
+  "description": "One lazy MCP tool for every server and skill you own: a human-approved capability broker for any MCP client",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -12,7 +12,15 @@
     "model-context-protocol",
     "lazy-loading",
     "token-optimization",
-    "skills"
+    "skills",
+    "agent-skills",
+    "mcp-server",
+    "mcp-gateway",
+    "context-window",
+    "tool-search",
+    "opencode",
+    "claude-code",
+    "cursor"
   ],
   "repository": {
     "type": "git",
@@ -41,6 +49,8 @@
     "examples",
     "cordis.patch.yml",
     "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
     "LICENSE"
   ],
   "dsh": {
@@ -72,7 +82,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "zod": "4.1.12"
+    "zod": "4.6.7"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "^0.1.5-rc.2",

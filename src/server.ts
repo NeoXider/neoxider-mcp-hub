@@ -26,8 +26,13 @@ async function main(): Promise<void> {
   const repository = new CatalogRepository(catalogPath, stateDir);
   await repository.load();
   // --page-chars wins over CAPABILITY_HUB_PAGE_CHARS; 0 turns paging off.
-  const pageSetting = argumentValue("--page-chars") ?? process.env.CAPABILITY_HUB_PAGE_CHARS;
-  const hub = new CapabilityHub(repository, pageSetting === undefined ? {} : { pageChars: Number(pageSetting) });
+  // An empty value counts as unset: Number("") is 0, which would silently turn paging off.
+  const pageSetting = (argumentValue("--page-chars") ?? process.env.CAPABILITY_HUB_PAGE_CHARS)?.trim() || undefined;
+  const pageChars = pageSetting === undefined ? undefined : Number(pageSetting);
+  if (pageChars !== undefined && (!Number.isInteger(pageChars) || pageChars < 0)) {
+    throw new Error(`--page-chars / CAPABILITY_HUB_PAGE_CHARS must be a non-negative integer, got "${pageSetting ?? ""}"`);
+  }
+  const hub = new CapabilityHub(repository, pageChars === undefined ? {} : { pageChars });
   const { version } = JSON.parse(await readFile(path.join(packageDir, "package.json"), "utf8")) as { version: string };
   const server = new McpServer({ name: "neoxider-mcp-hub", version });
   server.server.onclose = () => void hub.close();

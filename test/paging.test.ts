@@ -62,6 +62,7 @@ test("a long call result is served in pages below the DSH pruner threshold and r
       cursor: "r1:2",
       pages: splitPages(LONG, DEFAULT_PAGE_CHARS).length,
       totalChars: LONG.length,
+      text: firstText,
     });
     assert.match(firstText, /Next page: \{"action":"page","cursor":"r1:2"\}\]$/);
 
@@ -72,7 +73,9 @@ test("a long call result is served in pages below the DSH pruner threshold and r
       const pageText = text(next);
       assert.ok(pageText.length < DSH_PRUNER_THRESHOLD_CHARS, `a page is ${String(pageText.length)} chars`);
       parts.push(body(pageText));
-      cursor = (next.structuredContent as { cursor: string | null }).cursor;
+      const meta = next.structuredContent as { cursor: string | null; text: string };
+      assert.equal(meta.text, pageText, "structuredContent carries the same page, for clients that ignore content.text");
+      cursor = meta.cursor;
     }
     assert.match(parts.length > 1 ? text(await hub.execute({ action: "page", cursor: `r1:${String(parts.length)}` }, signal())) : "", /the last one\.\]$/);
     // Pages break on line ends where they can; dropping the one separator added before

@@ -2,6 +2,8 @@ node_modules/
 dist/
 data/state/
 *.log
+# Built bundles belong on a GitHub release, not in the tree
+*.tgz
 .env
 .env.*
 !.env.example
