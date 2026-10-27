@@ -12,7 +12,8 @@
   <img alt="MCP SDK 1.32" src="https://img.shields.io/badge/MCP%20SDK-1.32-8b79ff" />
   <img alt="Context saved" src="https://img.shields.io/badge/context-93.2%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.10.0-8b79ff" /></a>
+  <a href="https://www.npmjs.com/package/@neoxider/mcp-hub"><img alt="npm" src="https://img.shields.io/npm/v/@neoxider/mcp-hub?color=8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.10.1-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -101,7 +102,19 @@ The client takes simple requests as plain flags (`--action`, `--query`, `--kind`
 
 ## Connect your client
 
-Build once with `pnpm build`, then point the client at `dist/src/server.js`. Use absolute paths. Without `--catalog` and `--state` the hub uses the `data/` folder of the checkout.
+The hub is a plain stdio server. Launch it from npm, with nothing to clone or build:
+
+```bash
+npx -y @neoxider/mcp-hub --catalog /abs/path/catalog.json --state /abs/path/state
+```
+
+Keep your own catalog and state in folders that last. The package's bundled `data/` holds only the demo entries, and under `npx` it sits in a cache that can be cleared, taking your approvals with it. A new catalog can start empty:
+
+```json
+{ "version": 1, "entries": [] }
+```
+
+From a checkout instead (after `pnpm build`), replace `npx -y @neoxider/mcp-hub` with `node /abs/path/neoxider-mcp-hub/dist/src/server.js`; without `--catalog` and `--state` it then uses the checkout's own `data/` folder. Use absolute paths either way.
 
 ### OpenCode
 
@@ -112,7 +125,11 @@ Build once with `pnpm build`, then point the client at `dist/src/server.js`. Use
   "mcp": {
     "capability_hub": {
       "type": "local",
-      "command": ["node", "/abs/path/neoxider-mcp-hub/dist/src/server.js"],
+      "command": [
+        "npx", "-y", "@neoxider/mcp-hub",
+        "--catalog", "/abs/path/catalog.json",
+        "--state", "/abs/path/state"
+      ],
       "timeout": 360000,
       "enabled": true
     }
@@ -125,7 +142,7 @@ A call that starts a child server can take a while; raise `timeout` if the clien
 ### Claude Code
 
 ```bash
-claude mcp add capability-hub -- node /abs/path/neoxider-mcp-hub/dist/src/server.js
+claude mcp add capability-hub -- npx -y @neoxider/mcp-hub --catalog /abs/path/catalog.json --state /abs/path/state
 ```
 
 ### Claude Desktop, Cursor and other `mcpServers` clients
@@ -134,11 +151,19 @@ claude mcp add capability-hub -- node /abs/path/neoxider-mcp-hub/dist/src/server
 {
   "mcpServers": {
     "capability-hub": {
-      "command": "node",
-      "args": ["/abs/path/neoxider-mcp-hub/dist/src/server.js"]
+      "command": "npx",
+      "args": ["-y", "@neoxider/mcp-hub", "--catalog", "/abs/path/catalog.json", "--state", "/abs/path/state"]
     }
   }
 }
+```
+
+On Windows a client that cannot start `npx` directly needs `"command": "cmd"` with `"args": ["/c", "npx", "-y", "@neoxider/mcp-hub", …]`.
+
+Approve a proposal from the same package, with the same `--catalog` and `--state`:
+
+```bash
+npx -y -p @neoxider/mcp-hub capability-hub-admin approve <proposal-id> --catalog /abs/path/catalog.json --state /abs/path/state --yes
 ```
 
 ### DeepSeek Harness
@@ -146,7 +171,7 @@ claude mcp add capability-hub -- node /abs/path/neoxider-mcp-hub/dist/src/server
 Install the published bundle — no paths to edit, no build on your machine:
 
 ```powershell
-dsh plugin --profile web add https://github.com/NeoXider/neoxider-mcp-hub/releases/download/v0.10.0/neoxider-mcp-hub-0.10.0.tgz
+dsh plugin --profile web add https://github.com/NeoXider/neoxider-mcp-hub/releases/download/v0.10.1/neoxider-mcp-hub-0.10.1.tgz
 ```
 
 Restart Harness. The hub runs inside the host process as one native model-facing tool, `capability_hub`. The catalog and state default to the installed package's `data/` directory; to keep them elsewhere, set the row's `catalogPath` / `stateDir` Config in your profile's `cordis.patch.yml`.
@@ -475,7 +500,7 @@ Measured on Strata 0.2.3 (Qwen3.8-Flash-Next Coder IQ1_M, 128K, one slot) throug
 - Tool calls are proxied; child MCP resources and prompts are not bridged yet.
 - Reconnect is explicit: `disable`, then `enable`.
 - Remote skill download, signature verification and sandboxed installers are future work.
-- Distribution is a Git checkout or the Harness bundle from [GitHub Releases](https://github.com/NeoXider/neoxider-mcp-hub/releases); there is no npm package yet.
+- Distribution is the npm package `@neoxider/mcp-hub`, a Git checkout, or the Harness bundle from [GitHub Releases](https://github.com/NeoXider/neoxider-mcp-hub/releases).
 - A model with unrestricted host shell access can bypass plugin-local policy; use Harness permissions as the outer boundary.
 
 ## More

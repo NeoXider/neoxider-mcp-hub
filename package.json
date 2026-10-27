@@ -1,6 +1,6 @@
 {
   "name": "@neoxider/mcp-hub",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "One lazy MCP tool for every server and skill you own: a human-approved capability broker for any MCP client",
   "type": "module",
   "private": false,
@@ -24,7 +24,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/NeoXider/neoxider-mcp-hub.git"
+    "url": "git+https://github.com/NeoXider/neoxider-mcp-hub.git"
   },
   "homepage": "https://github.com/NeoXider/neoxider-mcp-hub#readme",
   "bugs": "https://github.com/NeoXider/neoxider-mcp-hub/issues",
@@ -32,6 +32,7 @@
     "node": ">=22.19"
   },
   "bin": {
+    "mcp-hub": "dist/src/server.js",
     "capability-hub-mcp": "dist/src/server.js",
     "capability-hub-admin": "dist/src/admin.js",
     "capability-hub-client": "dist/src/client.js",
@@ -88,6 +89,11 @@
     "@deepseek-ai/dsh-tools": "^0.1.5-rc.2",
     "@deepseek-ai/schemastery": "^3.18.2"
   },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": { "optional": true },
+    "@deepseek-ai/schemastery": { "optional": true }
+  },
+  "publishConfig": { "access": "public" },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
     "@deepseek-ai/dsh-tools": "0.1.5-rc.2",

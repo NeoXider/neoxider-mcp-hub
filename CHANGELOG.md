@@ -5,6 +5,29 @@ All notable changes to NeoXider MCP Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-10-27
+
+### Added
+
+- **The package is on npm as `@neoxider/mcp-hub`.** `npx -y @neoxider/mcp-hub --catalog …
+  --state …` starts the server with nothing to clone or build. The package has four
+  executables, so `npx` could not tell which to run; `mcp-hub` (the package's own name)
+  now points at the server.
+
+### Changed
+
+- **The Harness peer dependencies are optional.** `@deepseek-ai/dsh-tools` and
+  `@deepseek-ai/schemastery` are needed only by the Harness plugin entry, which Harness
+  itself supplies; npm 7+ installs peers by default, so everyone running the plain
+  server was pulling them in.
+- `publishConfig.access` is `public`, which a scoped package needs.
+
+### Documentation
+
+- README: client setup uses `npx`, with the persistent-catalog advice that goes with it
+  (under `npx` the package's own `data/` is in a clearable cache), and approval through
+  `npx -p @neoxider/mcp-hub capability-hub-admin`.
+
 ## [0.10.0] - 2026-10-27
 
 ### Fixed
