@@ -60,6 +60,10 @@ test("hub lazily loads a skill and proxies a child MCP call", async () => {
 
     const skill = await hub.execute({ action: "skill.load", name: "evidence-skill" }, signal);
     assert.match(firstText(skill), /measured evidence/);
+    // Some clients (OpenCode) render structuredContent only, so the body must be there too.
+    const skillMeta = skill.structuredContent as { name: string; instructions: string };
+    assert.equal(skillMeta.name, "evidence-skill");
+    assert.match(skillMeta.instructions, /measured evidence/);
 
     const enabled = await hub.execute({ action: "enable", name: "echo-test" }, signal);
     assert.match(firstText(enabled), /echo/);

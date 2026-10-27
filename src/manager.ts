@@ -524,7 +524,10 @@ export class CapabilityHub {
     const content = await readFile(skillPath, "utf8");
     return textResult(
       `<skill_content name="${entry.name}">\n<skill_instructions>\n${content}\n</skill_instructions>\n</skill_content>`,
-      { name: entry.name, source: entry.source ?? skillPath },
+      // Clients differ in what they surface: DSH renders content.text, while OpenCode reads
+      // structuredContent only. Without the body here a skill arrives as a 64-character
+      // metadata stub. The duplication costs tokens only on an explicit skill.load.
+      { name: entry.name, source: entry.source ?? skillPath, instructions: content },
     );
   }
 
