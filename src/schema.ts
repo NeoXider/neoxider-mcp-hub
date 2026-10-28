@@ -87,6 +87,16 @@ export const persistedConfigSchema = z.object({
   capabilities: z.record(z.string(), z.record(z.string(), z.json())),
 });
 
+// The tool schema is read by every client the hub serves, so it keeps to the subset all
+// of them accept: type, properties, required, enum, a boolean additionalProperties and
+// descriptions. DeepSeek Harness checks tools against that subset and degrades the rest
+// (its run_code signatures turned the whole hub input into `unknown`), and constrained
+// decoders compile it most reliably. Length limits are therefore refinements: they hold
+// on input exactly as `.max()` did, but project no `maxLength` into the schema.
+function boundedString(max: number) {
+  return z.string().refine((value) => value.length <= max, { message: `At most ${max} characters` });
+}
+
 export const hubInputShape = {
   action: z
     .enum([
@@ -105,10 +115,10 @@ export const hubInputShape = {
       "page",
     ])
     .describe("Operation to perform."),
-  query: z.string().max(500).optional().describe("Search text. With action search it filters the catalog; with action tools it filters that server's tool names and descriptions."),
+  query: boundedString(500).optional().describe("Search text. With action search it filters the catalog; with action tools it filters that server's tool names and descriptions."),
   kind: z.enum(["mcp", "skill"]).optional().describe("Optional capability type filter."),
-  name: z.string().max(80).optional().describe("Exact capability name."),
-  tool: z.string().max(500).optional().describe("Raw child MCP tool name for call."),
+  name: boundedString(80).optional().describe("Exact capability name."),
+  tool: boundedString(500).optional().describe("Raw child MCP tool name for call."),
   // One payload field instead of three. `argumentsJson`, `configJson` and `entryJson`
   // were mutually exclusive — no action ever read more than one — yet every host paid
   // for all three schemas in every prompt. A measured decomposition of the 466-token
@@ -118,17 +128,18 @@ export const hubInputShape = {
   // `call` arguments additionally accept the structured `arguments` object below. It is
   // advertised here rather than shimmed, because the MCP SDK strips unknown keys
   // against this shape before the handler ever runs — only a declared field survives.
-  payloadJson: z
-    .string()
-    .max(200_000)
+  payloadJson: boundedString(200_000)
     .optional()
     .describe(
       'JSON object for the action: arguments for call (e.g. {"url":"https://example.com"}), non-secret whitelisted configuration for configure and enable, or a capability proposal for propose.',
     ),
-  // Structured form of the call arguments. `z.unknown()` keeps the projected JSON
-  // Schema a bare object, so this costs one property instead of a recursive union.
+  // Structured form of the call arguments: any object, projected as a bare object with
+  // `additionalProperties: true`. A record would add `propertyNames` and an empty-schema
+  // `additionalProperties`, both outside the subset above, and a typed union would cost a
+  // recursive schema in every prompt.
   arguments: z
-    .record(z.string(), z.unknown())
+    .looseObject({})
+    .meta({ additionalProperties: true })
     .optional()
     .describe(
       'Call arguments as an object (e.g. {"url":"https://example.com"}). Prefer this over payloadJson for action call; the two must not be combined.',
@@ -139,5 +150,5 @@ export const hubInputShape = {
     .describe("Include full child tool schemas. Leave false unless arguments cannot be inferred."),
   // One field for paging rather than a result id plus a page number: every property here
   // is paid for in every prompt, and the cursor is copied verbatim from a result footer.
-  cursor: z.string().max(80).optional().describe("For action page: the cursor from a paged result's last line."),
+  cursor: boundedString(80).optional().describe("For action page: the cursor from a paged result's last line."),
 };

@@ -5,6 +5,45 @@ All notable changes to NeoXider MCP Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-10-28
+
+### Fixed
+
+- **The tool schema uses only keywords every client accepts.** It advertised
+  `maxLength` on five strings, and `propertyNames` with an empty-schema
+  `additionalProperties` on `arguments`. DeepSeek Harness checks tool schemas against
+  a smaller subset, so its `run_code` signatures typed the whole hub input as
+  `unknown`; strict validators and constrained decoders trip on the same keywords.
+  The limits are now checked on input instead of advertised, `arguments` is a bare
+  object with `additionalProperties: true`, and the schema is 27 tokens shorter. An
+  e2e test holds the advertised schema to that subset.
+- **The Harness plugin loads from a checkout.** It imported `@deepseek-ai/dsh-tools`
+  and `@deepseek-ai/schemastery` at runtime, and from a linked or path-loaded checkout
+  those resolve against the repository's own `node_modules`, not the Harness, so the
+  plugin ran against whatever old dsh-tools was installed there. It now registers a
+  raw tool definition, the form the in-box MCP client registers, and its Config is a
+  zod schema, which cordis validates through Standard Schema. Both Harness packages are
+  gone from the peer dependencies.
+- **The native tool's parameters are the stdio server's.** The plugin had its own
+  hand-written copy of the schema; it now projects `hubInputShape` the way the MCP SDK
+  does, so the two routes put the same tool in the prompt, and a test holds them equal.
+- **Bad arguments to the native tool get a readable error.** Nothing checked them, so
+  an unknown action reached the hub and failed with a TypeError. They are now
+  validated as on the stdio route, and the error lists what was expected.
+
+### Added
+
+- **`toolCallTimeoutMs` Config for the native tool**, defaulting to the previous
+  300,000 ms, so a setup that raised the MCP client's timeout keeps it after switching.
+
+### Documentation
+
+- README: loading a built checkout by path, and why a local model is better off with
+  the native `capability_hub` than with `mcp__capability_hub__capability_hub`.
+- README: every client example names the server `capability_hub`. The Claude Code and
+  `mcpServers` examples said `capability-hub`, so the same tool appeared under two
+  spellings across clients.
+
 ## [0.10.1] - 2026-10-27
 
 ### Added

@@ -7,6 +7,28 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
+// The keywords every client the hub serves accepts. DeepSeek Harness checks tools against
+// this subset (plus `const` and `oneOf`, which the hub does not need) and degrades the
+// rest; `$schema` is the MCP SDK's own marker at the root.
+const PORTABLE_KEYWORDS = new Set(["type", "properties", "required", "additionalProperties", "items", "enum", "description"]);
+
+function unportableKeywords(schema: unknown, at = "", root = true): string[] {
+  if (schema === null || typeof schema !== "object") return [`${at || "schema"} is not an object`];
+  const found: string[] = [];
+  for (const [key, value] of Object.entries(schema)) {
+    const where = `${at}${at ? "." : ""}${key}`;
+    if (root && key === "$schema") continue;
+    if (!PORTABLE_KEYWORDS.has(key)) found.push(where);
+    else if (key === "additionalProperties" && typeof value !== "boolean") found.push(`${where} is not a boolean`);
+    else if (key === "properties") {
+      for (const [name, child] of Object.entries(value as Record<string, unknown>)) {
+        found.push(...unportableKeywords(child, `${where}.${name}`, false));
+      }
+    } else if (key === "items") found.push(...unportableKeywords(value, where, false));
+  }
+  return found;
+}
+
 test("outer MCP exposes exactly one tool and proxies through it", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "capability-hub-e2e-"));
   const compiledRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -42,6 +64,7 @@ test("outer MCP exposes exactly one tool and proxies through it", async () => {
     assert.deepEqual(listed.tools.map((tool) => tool.name), ["capability_hub"]);
     const publicSchema = JSON.stringify(listed.tools[0]?.inputSchema);
     assert.doesNotMatch(publicSchema, /\"\$ref\"|\"definitions\"|\"anyOf\"|\"oneOf\"|\"pattern\"/);
+    assert.deepEqual(unportableKeywords(listed.tools[0]?.inputSchema), []);
 
     const searched = await client.callTool({
       name: "capability_hub",

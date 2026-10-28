@@ -13,7 +13,7 @@
   <img alt="Context saved" src="https://img.shields.io/badge/context-93.2%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
   <a href="https://www.npmjs.com/package/@neoxider/mcp-hub"><img alt="npm" src="https://img.shields.io/npm/v/@neoxider/mcp-hub?color=8b79ff" /></a>
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.10.1-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.10.2-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -142,15 +142,17 @@ A call that starts a child server can take a while; raise `timeout` if the clien
 ### Claude Code
 
 ```bash
-claude mcp add capability-hub -- npx -y @neoxider/mcp-hub --catalog /abs/path/catalog.json --state /abs/path/state
+claude mcp add capability_hub -- npx -y @neoxider/mcp-hub --catalog /abs/path/catalog.json --state /abs/path/state
 ```
+
+Every example names the server `capability_hub`, with an underscore. Clients that prefix MCP tools with the server name then show one spelling everywhere, and a model that has seen the tool under one client does not reach for `capability-hub` under another.
 
 ### Claude Desktop, Cursor and other `mcpServers` clients
 
 ```json
 {
   "mcpServers": {
-    "capability-hub": {
+    "capability_hub": {
       "command": "npx",
       "args": ["-y", "@neoxider/mcp-hub", "--catalog", "/abs/path/catalog.json", "--state", "/abs/path/state"]
     }
@@ -171,12 +173,23 @@ npx -y -p @neoxider/mcp-hub capability-hub-admin approve <proposal-id> --catalog
 Install the published bundle — no paths to edit, no build on your machine:
 
 ```powershell
-dsh plugin --profile web add https://github.com/NeoXider/neoxider-mcp-hub/releases/download/v0.10.1/neoxider-mcp-hub-0.10.1.tgz
+dsh plugin --profile web add https://github.com/NeoXider/neoxider-mcp-hub/releases/download/v0.10.2/neoxider-mcp-hub-0.10.2.tgz
 ```
 
-Restart Harness. The hub runs inside the host process as one native model-facing tool, `capability_hub`. The catalog and state default to the installed package's `data/` directory; to keep them elsewhere, set the row's `catalogPath` / `stateDir` Config in your profile's `cordis.patch.yml`.
+Restart Harness. The hub runs inside the host process as one native model-facing tool, `capability_hub`. The catalog and state default to the installed package's `data/` directory; to keep them elsewhere, set the row's `catalogPath` / `stateDir` Config in your profile's `cordis.patch.yml`. `toolCallTimeoutMs` raises the per-call ceiling from its 300,000 ms default, and `pageChars` sets the page size.
 
-The manual alternative is a stdio child through the in-box MCP client: build the hub, then merge [`examples/dsh/cordis.patch.yml`](examples/dsh/cordis.patch.yml) into the active Harness Web profile and adjust the absolute repository path. Harness then exposes the tool as `mcp__capability_hub__capability_hub`.
+A built checkout loads the same way without packing it: insert the compiled entry by path. The plugin imports nothing from Harness at runtime, so it works from outside the profile's `node_modules`.
+
+```yaml
+- insert:
+    - id: capability-hub
+      name: /abs/path/neoxider-mcp-hub/dist/src/dsh-plugin.js
+      config:
+        catalogPath: /abs/path/catalog.json
+        stateDir: /abs/path/state
+```
+
+Prefer the native tool with a local model. The alternative is a stdio child through the in-box MCP client: build the hub, then merge [`examples/dsh/cordis.patch.yml`](examples/dsh/cordis.patch.yml) into the active Harness Web profile and adjust the absolute repository path. Harness then exposes the tool as `mcp__capability_hub__capability_hub`, a long name that repeats itself. Small models sometimes misspell it, for example as `mcp__capability-hub__…`, and a server that only recognizes declared tool names then returns the whole call as plain text, so it never runs.
 
 ### Share one catalog between clients
 
@@ -260,7 +273,7 @@ Ready-to-review proposals are included for [Web Search Neo](examples/catalog/web
 
 ## Model-facing contract
 
-The public schema is intentionally flat so constrained-decoding engines such as LM Studio can compile it reliably. Call arguments travel as a structured `arguments` object; the remaining payloads (configuration, proposals) travel as JSON strings.
+The public schema is intentionally flat so constrained-decoding engines such as LM Studio can compile it reliably. It uses only the keywords every client accepts: `type`, `properties`, `required`, `enum`, a boolean `additionalProperties` and descriptions. Length limits are checked on input rather than advertised as `maxLength`. Call arguments travel as a structured `arguments` object; the remaining payloads (configuration, proposals) travel as JSON strings.
 
 ```json
 {"action":"tools","name":"web-search-neo","query":"search"}

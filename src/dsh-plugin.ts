@@ -1,12 +1,12 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Context } from "@deepseek-ai/cordis";
-import { defineTool } from "@deepseek-ai/dsh-tools";
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
-import z from "@deepseek-ai/schemastery";
+import { z } from "zod";
 import { CatalogRepository } from "./catalog.js";
 import { describeHub } from "./description.js";
 import { CapabilityHub } from "./manager.js";
+import { hubInputShape } from "./schema.js";
 import type { HubWireInput } from "./wire.js";
 import { decodeWireInput } from "./wire.js";
 
@@ -14,21 +14,49 @@ export const name = "capability-hub";
 
 export const inject = ["tools"];
 
+// Nothing from @deepseek-ai/* is imported at runtime. Loaded from a checkout by path or
+// through a `link:` dependency, those bare specifiers resolve against this repository's
+// node_modules rather than the Harness, so the plugin would run against whatever
+// dsh-tools happened to be installed here. It registers a raw ToolRuntime definition
+// instead, the form dsh-mcp-client registers, and cordis validates this Config through
+// the Standard Schema interface that zod implements.
 export const Config = z.object({
-  catalogPath: z.string().required(false),
-  stateDir: z.string().required(false),
-  pageChars: z.natural().required(false),
+  catalogPath: z.string().optional(),
+  stateDir: z.string().optional(),
+  pageChars: z.number().int().nonnegative().optional(),
+  toolCallTimeoutMs: z.number().int().positive().optional(),
 });
 
 export interface CapabilityHubPluginConfig {
   catalogPath?: string;
   stateDir?: string;
   pageChars?: number;
+  toolCallTimeoutMs?: number;
 }
 
 // A hub call fans out into child MCP servers and skill loads, so the ceiling sits well
 // above one child round trip instead of beside it.
 const TOOL_TIMEOUT_MS = 300_000;
+
+const inputSchema = z.object(hubInputShape);
+
+// Projected the way the MCP SDK projects it, so the stdio server and this plugin put the
+// same parameters in the prompt and a model moved between the two routes sees one tool.
+// Only the SDK's `$schema` marker is left out: Harness checks tool schemas against a
+// keyword subset that does not include it.
+function projectParameters(): Record<string, unknown> {
+  const { $schema: _marker, ...schema } = z.toJSONSchema(inputSchema, { target: "draft-7", io: "input" });
+  return schema;
+}
+
+export const toolParameters = projectParameters();
+
+const outputSchema = {
+  type: "object",
+  properties: { text: { type: "string" } },
+  required: ["text"],
+  additionalProperties: false,
+};
 
 interface ToolRegistry {
   register(definition: unknown): void;
@@ -53,90 +81,35 @@ export async function apply(
   await repository.load();
   const hub = new CapabilityHub(repository, config.pageChars === undefined ? {} : { pageChars: config.pageChars });
   const registry = (ctx as unknown as { tools: ToolRegistry }).tools;
-  registry.register(
-    defineTool({
-      name: "capability_hub",
-      description: describeHub(repository),
-      parameters: {
-        action: {
-          type: "string",
-          required: true,
-          enum: [
-            "search",
-            "inspect",
-            "status",
-            "configure",
-            "enable",
-            "disable",
-            "tools",
-            "call",
-            "skill.load",
-            "propose",
-            "proposals",
-            "catalog.reload",
-            "page",
-          ],
-          description: "Operation to perform.",
-        },
-        query: {
-          type: "string",
-          description:
-            "Search text. With action search it filters the catalog; with action tools it filters that server's tool names and descriptions.",
-        },
-        kind: {
-          type: "string",
-          enum: ["mcp", "skill"],
-          description: "Optional capability type filter.",
-        },
-        name: { type: "string", description: "Exact capability name." },
-        tool: { type: "string", description: "Raw child MCP tool name for call." },
-        payloadJson: {
-          type: "string",
-          description:
-            'JSON object for the action: arguments for call (e.g. {"url":"https://example.com"}), non-secret whitelisted configuration for configure and enable, or a capability proposal for propose.',
-        },
-        arguments: {
-          type: "object",
-          additionalProperties: true,
-          description:
-            'Call arguments as an object (e.g. {"url":"https://example.com"}). Prefer this over payloadJson for action call; the two must not be combined.',
-        },
-        includeSchema: {
-          type: "boolean",
-          description: "Include full child tool schemas. Leave false unless arguments cannot be inferred.",
-        },
-        cursor: {
-          type: "string",
-          description: "For action page: the cursor from a paged result's last line.",
-        },
-      },
-      output: {
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            text: { type: "string", required: true },
-          },
-        },
-        render: (_args, value) => [{ type: "text", text: (value as { text: string }).text }],
-      },
-      timeoutMs: TOOL_TIMEOUT_MS,
-      async execute(args, exec: ToolRunContext) {
-        const outcome = await hub.execute(decodeWireInput(args as HubWireInput), exec.signal);
-        const text = resultText(outcome);
-        if (outcome.isError === true) {
-          throw new Error(text === "" ? "capability_hub failed" : text);
-        }
-        return { text };
-      },
-      presentCall: (args) => ({
-        card: "generic",
-        title: "Capability hub",
-        kind: "other",
-        rawInput: (args as { action?: unknown }).action,
-      }),
+  registry.register({
+    name: "capability_hub",
+    description: describeHub(repository),
+    parameters: toolParameters,
+    output: {
+      schema: outputSchema,
+      render: (_args: unknown, value: unknown) => [{ type: "text", text: (value as { text: string }).text }],
+    },
+    timeoutMs: config.toolCallTimeoutMs ?? TOOL_TIMEOUT_MS,
+    async execute(args: unknown, exec: ToolRunContext) {
+      // The registry does not check a raw definition's arguments, and a local server
+      // that does not constrain decoding passes on whatever the model wrote, so the
+      // check the MCP SDK makes on the stdio route is made here.
+      const parsed = inputSchema.safeParse(args ?? {});
+      if (!parsed.success) throw new Error(`Invalid capability_hub arguments:\n${z.prettifyError(parsed.error)}`);
+      const outcome = await hub.execute(decodeWireInput(parsed.data as HubWireInput), exec.signal);
+      const text = resultText(outcome);
+      if (outcome.isError === true) {
+        throw new Error(text === "" ? "capability_hub failed" : text);
+      }
+      return { text };
+    },
+    presentCall: (args: unknown) => ({
+      card: "generic",
+      title: "Capability hub",
+      kind: "other",
+      rawInput: (args as { action?: unknown } | undefined)?.action,
     }),
-  );
+  });
   return async () => {
     await hub.close();
   };

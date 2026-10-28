@@ -1,6 +1,6 @@
 {
   "name": "@neoxider/mcp-hub",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "One lazy MCP tool for every server and skill you own: a human-approved capability broker for any MCP client",
   "type": "module",
   "private": false,
@@ -84,14 +84,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "4.6.7"
-  },
-  "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "^0.1.5-rc.2",
-    "@deepseek-ai/schemastery": "^3.18.2"
-  },
-  "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-tools": { "optional": true },
-    "@deepseek-ai/schemastery": { "optional": true }
   },
   "publishConfig": { "access": "public" },
   "devDependencies": {
