@@ -5,6 +5,25 @@ All notable changes to NeoXider MCP Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.3] - 2026-10-28
+
+### Fixed
+
+- **A hub call written as text now runs in DeepSeek Harness.** A local server such as
+  Strata or llama-server turns `<tool_call>` text into a tool call only when the name
+  matches a declared tool, and a model that had seen the hub as
+  `mcp__capability_hub__capability_hub` kept writing variants of it
+  (`mcp__capability_hub`, `mcp__capability-hub__…`) after the native tool became
+  `capability_hub`. Each such call came back as message text and the turn ended. The
+  Harness plugin now watches the model stream (`llm/stream`) of every request that
+  offers the hub. When a reply has no structured tool call and its text ends in written
+  calls to the hub, under any of those spellings, they become real `capability_hub`
+  calls, and the text keeps only what came before them. Qwen's XML format and the JSON
+  form are read, with values typed by the tool schema. Text that only quotes a call (in
+  a code fence, or followed by more prose), a call cut off mid-way, a truncated reply,
+  and calls to other tools are left as they are. No alias tool is registered, so the
+  prompt does not grow.
+
 ## [0.10.2] - 2026-10-28
 
 ### Fixed

@@ -7,6 +7,8 @@ import { CatalogRepository } from "./catalog.js";
 import { describeHub } from "./description.js";
 import { CapabilityHub } from "./manager.js";
 import { hubInputShape } from "./schema.js";
+import type { ParameterTypes, StreamChunk } from "./text-call-recovery.js";
+import { HUB_TOOL, recoverTextCalls } from "./text-call-recovery.js";
 import type { HubWireInput } from "./wire.js";
 import { decodeWireInput } from "./wire.js";
 
@@ -51,6 +53,13 @@ function projectParameters(): Record<string, unknown> {
 
 export const toolParameters = projectParameters();
 
+const parameterTypes: ParameterTypes = Object.fromEntries(
+  Object.entries((toolParameters.properties ?? {}) as Record<string, { type?: string }>).map(([key, schema]) => [
+    key,
+    schema.type,
+  ]),
+);
+
 const outputSchema = {
   type: "object",
   properties: { text: { type: "string" } },
@@ -60,6 +69,16 @@ const outputSchema = {
 
 interface ToolRegistry {
   register(definition: unknown): void;
+}
+
+interface StreamRequest {
+  tools?: readonly { name: string }[];
+}
+
+type StreamListener = (request: StreamRequest, next: () => AsyncIterable<StreamChunk>) => AsyncIterable<StreamChunk>;
+
+interface EventContext {
+  on(name: "llm/stream", listener: StreamListener, options: { global: boolean }): unknown;
 }
 
 function resultText(result: Awaited<ReturnType<CapabilityHub["execute"]>>): string {
@@ -81,8 +100,16 @@ export async function apply(
   await repository.load();
   const hub = new CapabilityHub(repository, config.pageChars === undefined ? {} : { pageChars: config.pageChars });
   const registry = (ctx as unknown as { tools: ToolRegistry }).tools;
+  // Global, so subagents' model calls are covered too. A request that does not offer the
+  // hub tool is left alone: a call recovered there would name a tool that agent lacks.
+  (ctx as unknown as EventContext).on(
+    "llm/stream",
+    (request, next) =>
+      request.tools?.some((tool) => tool.name === HUB_TOOL) ? recoverTextCalls(next(), parameterTypes) : next(),
+    { global: true },
+  );
   registry.register({
-    name: "capability_hub",
+    name: HUB_TOOL,
     description: describeHub(repository),
     parameters: toolParameters,
     output: {

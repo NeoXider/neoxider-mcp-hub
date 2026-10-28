@@ -29,13 +29,26 @@ async function emptyCatalog(): Promise<{ root: string; catalogPath: string; stat
   return { root, catalogPath, stateDir: path.join(root, "state") };
 }
 
+type StreamListener = (
+  request: { tools?: { name: string }[] },
+  next: () => AsyncIterable<Record<string, unknown>>,
+) => AsyncIterable<Record<string, unknown>>;
+
 async function applyWithEmptyCatalog(config: CapabilityHubPluginConfig = {}): Promise<{
   definition: CapturedDefinition;
+  streamListener: StreamListener;
   dispose: () => Promise<void>;
 }> {
   const { catalogPath, stateDir } = await emptyCatalog();
   let captured: CapturedDefinition | undefined;
+  let streamListener: StreamListener | undefined;
   const fakeCtx = {
+    on: (event: string, listener: StreamListener, options: { global?: boolean }): (() => void) => {
+      assert.equal(event, "llm/stream");
+      assert.equal(options.global, true);
+      streamListener = listener;
+      return () => undefined;
+    },
     tools: {
       register: (definition: unknown): (() => void) => {
         captured = definition as CapturedDefinition;
@@ -45,7 +58,18 @@ async function applyWithEmptyCatalog(config: CapabilityHubPluginConfig = {}): Pr
   } as unknown as Parameters<typeof apply>[0];
   const dispose = await apply(fakeCtx, { catalogPath, stateDir, ...config });
   assert.ok(captured, "apply registers exactly one tool");
-  return { definition: captured, dispose };
+  assert.ok(streamListener, "apply listens on llm/stream");
+  return { definition: captured, streamListener, dispose };
+}
+
+async function collect(stream: AsyncIterable<Record<string, unknown>>): Promise<Record<string, unknown>[]> {
+  const chunks: Record<string, unknown>[] = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  return chunks;
+}
+
+async function* chunks(...values: Record<string, unknown>[]): AsyncGenerator<Record<string, unknown>> {
+  yield* values;
 }
 
 function signal(): AbortSignal {
@@ -152,6 +176,31 @@ test("dsh tool keeps the length limits the schema no longer advertises", async (
       definition.execute({ action: "inspect", name: "x".repeat(81) }, { signal: signal() } as ToolRunContext),
       /At most 80 characters/,
     );
+  } finally {
+    await dispose();
+  }
+});
+
+test("dsh plugin recovers a written hub call only in requests that offer the hub", async () => {
+  const { streamListener, dispose } = await applyWithEmptyCatalog();
+  const written = "<tool_call>\n<function=mcp__capability_hub>\n<parameter=action>\nstatus\n</parameter>\n</function>\n</tool_call>";
+  const model = (): AsyncIterable<Record<string, unknown>> =>
+    chunks(
+      { type: "text-delta", index: 0, text: written },
+      { type: "block-end", index: 0, block: { type: "text", text: written } },
+      { type: "finish", reason: { kind: "stop" } },
+    );
+  try {
+    const withHub = await collect(streamListener({ tools: [{ name: "capability_hub" }] }, model));
+    const [text, call] = withHub.filter((chunk) => chunk.type === "block-end").map((chunk) => chunk.block) as {
+      type: string;
+      [key: string]: unknown;
+    }[];
+    assert.deepEqual(text, { type: "text", text: "" });
+    assert.equal(call?.name, "capability_hub");
+    assert.equal(call?.arguments, '{"action":"status"}');
+    const withoutHub = await collect(streamListener({ tools: [{ name: "pwsh" }] }, model));
+    assert.deepEqual(withoutHub, await collect(model()));
   } finally {
     await dispose();
   }

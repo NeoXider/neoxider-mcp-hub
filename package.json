@@ -1,6 +1,6 @@
 {
   "name": "@neoxider/mcp-hub",
-  "version": "0.10.2",
+  "version": "0.10.3",
   "description": "One lazy MCP tool for every server and skill you own: a human-approved capability broker for any MCP client",
   "type": "module",
   "private": false,
