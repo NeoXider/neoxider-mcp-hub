@@ -238,7 +238,7 @@
     "meanTokensPerServer": 1550
   },
   "hub": {
-    "staticTokens": 422,
+    "staticTokens": 536,
     "discovery": {
       "search": 72,
       "inspect": 121,
@@ -249,22 +249,22 @@
     },
     "scenarios": {
       "idle": {
-        "tokens": 422,
+        "tokens": 536,
         "path": "resident schema only",
-        "percentSaved": 93.2,
-        "ratio": 14.7
+        "percentSaved": 91.4,
+        "ratio": 11.6
       },
       "direct": {
-        "tokens": 554,
+        "tokens": 668,
         "path": "search + tools(query), auto-enabled",
-        "percentSaved": 91.1,
-        "ratio": 11.2
+        "percentSaved": 89.2,
+        "ratio": 9.3
       },
       "cautious": {
-        "tokens": 1195,
+        "tokens": 1309,
         "path": "search + inspect + enable + full tools",
-        "percentSaved": 80.7,
-        "ratio": 5.2
+        "percentSaved": 78.9,
+        "ratio": 4.7
       }
     }
   },
@@ -272,57 +272,64 @@
     {
       "servers": 4,
       "classicTokens": 6200,
-      "hubResidentTokens": 430,
-      "percentSaved": 93.1
+      "hubResidentTokens": 536,
+      "percentSaved": 91.4
     },
     {
       "servers": 7,
       "classicTokens": 10850,
-      "hubResidentTokens": 507,
-      "percentSaved": 95.3
+      "hubResidentTokens": 621,
+      "percentSaved": 94.3
     },
     {
       "servers": 10,
       "classicTokens": 15500,
-      "hubResidentTokens": 584,
-      "percentSaved": 96.2
+      "hubResidentTokens": 698,
+      "percentSaved": 95.5
     },
     {
       "servers": 15,
       "classicTokens": 23250,
-      "hubResidentTokens": 705,
-      "percentSaved": 97
+      "hubResidentTokens": 819,
+      "percentSaved": 96.5
     },
     {
       "servers": 20,
       "classicTokens": 31000,
-      "hubResidentTokens": 826,
-      "percentSaved": 97.3
+      "hubResidentTokens": 940,
+      "percentSaved": 97
     },
     {
       "servers": 30,
       "classicTokens": 46500,
-      "hubResidentTokens": 468,
-      "percentSaved": 99
+      "hubResidentTokens": 582,
+      "percentSaved": 98.7
     },
     {
       "servers": 43,
       "classicTokens": 66650,
-      "hubResidentTokens": 523,
-      "percentSaved": 99.2
+      "hubResidentTokens": 637,
+      "percentSaved": 99
     },
     {
       "servers": 60,
       "classicTokens": 93000,
-      "hubResidentTokens": 595,
-      "percentSaved": 99.4
+      "hubResidentTokens": 709,
+      "percentSaved": 99.2
     }
   ],
+  "skills": {
+    "count": 10,
+    "servers": 4,
+    "toolTokens": 785,
+    "instructionsTokens": 296,
+    "residentTokens": 1081
+  },
   "savings": {
-    "staticRatio": 14.7,
-    "staticPercent": 93.2,
-    "directPercent": 91.1,
-    "cautiousPercent": 80.7,
+    "staticRatio": 11.6,
+    "staticPercent": 91.4,
+    "directPercent": 89.2,
+    "cautiousPercent": 78.9,
     "breakEvenDirect": 47,
     "breakEvenCautious": 8
   }

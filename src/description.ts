@@ -1,4 +1,5 @@
 import type { CatalogRepository } from "./catalog.js";
+import type { CapabilityEntry } from "./types.js";
 
 // The description is part of the system prompt on every request, and a local server's
 // prompt cache only survives as long as that prefix stays byte-identical. So it holds no
@@ -15,6 +16,51 @@ export const BASE_DESCRIPTION =
 // bounded without dragging a tokenizer into the server's dependencies.
 export const INLINE_CATALOG_CHAR_BUDGET = 3_000;
 
+// Skills get a budget of their own. Sharing the server budget meant one verbose server
+// description, or one skill too many, flipped the WHOLE list to bare names — and a skill
+// whose name is all the model sees ("gamer-signal", "researcher") is a skill it does not
+// know to load. A skill line is also capped, so one long entry cannot crowd out the rest.
+export const INLINE_SKILL_CHAR_BUDGET = 1_500;
+export const SKILL_LINE_CHARS = 120;
+
+// Skills are passive: unlike a server, nothing about the task makes the model reach for
+// one, and a model that was never told to look simply never loads them. So the listing
+// says when to look (before starting) and how to load, not only what exists.
+export const SKILL_GUIDANCE =
+  'before starting a task, load each skill below that fits it with action "skill.load" and its name, then follow it';
+
+// One line, at most `max` characters, cut at a word boundary. Catalog descriptions are
+// written by people and may run to paragraphs; the inline list needs a sentence.
+export function oneLine(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:.—-]+$/u, "")}…`;
+}
+
+function serverListing(servers: readonly CapabilityEntry[]): string {
+  const detailed = servers.map((entry) => `${entry.name} (${entry.kind}): ${entry.description}`).join(" | ");
+  if (detailed.length <= INLINE_CATALOG_CHAR_BUDGET) return `Available capabilities — ${detailed}`;
+  const names = servers.map((entry) => entry.name).join(", ");
+  if (names.length <= INLINE_CATALOG_CHAR_BUDGET) {
+    return `Available capabilities: ${names}. Use action "search" for descriptions.`;
+  }
+  return `${servers.length} capabilities are available; use action "search" to list them.`;
+}
+
+// The skill list, degrading the same way the server list does: capped one-line
+// descriptions, then names, then a count with a pointer to `search`.
+export function skillListing(skills: readonly CapabilityEntry[], lead = `Skills — ${SKILL_GUIDANCE}`): string {
+  const detailed = skills.map((entry) => `${entry.name}: ${oneLine(entry.description, SKILL_LINE_CHARS)}`).join(" | ");
+  if (detailed.length <= INLINE_SKILL_CHAR_BUDGET) return `${lead}: ${detailed}`;
+  const names = skills.map((entry) => entry.name).join(", ");
+  if (names.length <= INLINE_SKILL_CHAR_BUDGET) {
+    return `${lead}: ${names}. Action "search" with kind "skill" gives their descriptions.`;
+  }
+  return `${lead}. ${skills.length} skills are available; action "search" with kind "skill" and a query finds them.`;
+}
+
 // The capability list ships INSIDE the resident description, rather than being something
 // the model has to spend a `search` round trip to discover.
 //
@@ -24,21 +70,33 @@ export const INLINE_CATALOG_CHAR_BUDGET = 3_000;
 // where the task does not read like a search query, so the model never searched at all
 // and simply answered without the capability.
 //
-// A large catalog would undo the saving this whole project exists for, so the list
-// degrades: full descriptions, then names only, then a pointer to `search`.
+// A large catalog would undo the saving this whole project exists for, so each list
+// degrades: full descriptions, then names only, then a pointer to `search`. A catalog
+// without skills describes itself exactly as it did before skills had a section.
 export function describeHub(repository: CatalogRepository): string {
   const entries = repository.all();
   if (entries.length === 0) return BASE_DESCRIPTION;
+  const servers = entries.filter((entry) => entry.kind === "mcp");
+  const skills = entries.filter((entry) => entry.kind === "skill");
+  const sections = [BASE_DESCRIPTION];
+  if (servers.length > 0) sections.push(serverListing(servers));
+  if (skills.length > 0) sections.push(skillListing(skills));
+  return sections.join("\n");
+}
 
-  const detailed = entries.map((entry) => `${entry.name} (${entry.kind}): ${entry.description}`).join(" | ");
-  if (detailed.length <= INLINE_CATALOG_CHAR_BUDGET) {
-    return `${BASE_DESCRIPTION}\nAvailable capabilities — ${detailed}`;
-  }
-
-  const names = entries.map((entry) => entry.name).join(", ");
-  if (names.length <= INLINE_CATALOG_CHAR_BUDGET) {
-    return `${BASE_DESCRIPTION}\nAvailable capabilities: ${names}. Use action "search" for descriptions.`;
-  }
-
-  return `${BASE_DESCRIPTION}\n${entries.length} capabilities are available; use action "search" to list them.`;
+// The MCP `instructions` a server returns at initialize. Hosts such as Claude Code put
+// them in the system prompt, and that is the one place a model reads before its first
+// turn: with tool search on, Claude Code defers the tool description itself until the
+// model searches for a tool, so a skill list kept only there is never seen at the start
+// of a task. Without skills there is nothing a model would otherwise miss, so nothing is
+// sent and a server-only catalog pays no extra resident tokens.
+export function hubInstructions(repository: CatalogRepository): string | undefined {
+  const skills = repository.all().filter((entry) => entry.kind === "skill");
+  if (skills.length === 0) return undefined;
+  return (
+    "capability_hub holds skills: task instructions that stay out of your context until loaded. " +
+    'Check them at the start of every task, and when one fits, call capability_hub with {"action":"skill.load","name":"<skill>"} ' +
+    "before you begin and follow what it returns. MCP servers in the same catalog start on demand; the tool description lists them.\n" +
+    skillListing(skills, "Skills")
+  );
 }

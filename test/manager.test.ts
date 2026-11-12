@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
@@ -61,9 +61,13 @@ test("hub lazily loads a skill and proxies a child MCP call", async () => {
     const skill = await hub.execute({ action: "skill.load", name: "evidence-skill" }, signal);
     assert.match(firstText(skill), /measured evidence/);
     // Some clients (OpenCode) render structuredContent only, so the body must be there too.
-    const skillMeta = skill.structuredContent as { name: string; instructions: string };
+    const skillMeta = skill.structuredContent as { name: string; directory: string; instructions: string };
     assert.equal(skillMeta.name, "evidence-skill");
     assert.match(skillMeta.instructions, /measured evidence/);
+    // Only SKILL.md travels through the hub, so the model is told where the skill's own
+    // references and scripts live.
+    assert.equal(path.resolve(skillMeta.directory), path.resolve(path.dirname(await realpath(skillPath))));
+    assert.match(firstText(skill), /Base directory for this skill: /);
 
     const enabled = await hub.execute({ action: "enable", name: "echo-test" }, signal);
     assert.match(firstText(enabled), /echo/);

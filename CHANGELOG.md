@@ -5,6 +5,39 @@ All notable changes to NeoXider MCP Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-11-13
+
+### Added
+
+- **The model learns the skill list at session start.** A skill helps only if the model
+  remembers to load it, and nothing told it to look. A catalog with skills now returns
+  MCP `instructions` at initialize: check the skills at the start of every task, load
+  each one that fits with `skill.load` before beginning, then the list with one-line
+  descriptions. Hosts such as Claude Code put these in the system prompt, and with tool
+  search on they are the only hub text a model sees before its first turn. A catalog
+  without skills sends none and pays nothing. `--no-instructions` turns them off for a
+  host that already shows the tool description up front.
+- **Skills have their own section in the tool description,** `Skills — before starting
+  a task, load each skill below that fits it…`, with its own 1,500-character budget and
+  each description cut to one line of at most 120 characters. Sharing the server budget
+  meant one verbose server, or one skill too many, dropped every entry to a bare name.
+  The section degrades on its own: names, then a count with a pointer to `search`. A
+  catalog without skills describes itself byte for byte as before.
+- **`skill.load` names the skill's directory** (`Base directory for this skill: …`, and
+  `directory` in `structuredContent`), so a model that can read files opens the skill's
+  `references/` and `scripts/` instead of guessing where they are.
+- `bench/measure.mjs` counts initialize instructions as resident tokens and measures the
+  four benchmark servers plus ten skills: 785 tool tokens and 296 instruction tokens.
+
+### Fixed
+
+- **The published resident cost was stale.** The 0.10.x description (the `call`
+  shortcut, paging) had grown the hub from 422 to 536 resident tokens on the benchmark
+  catalog, while the README and docs/context-economy.md still showed 422. Both now show
+  the current measurement: 91.4% smaller than the four classic servers, 11.6x. The
+  four-server row of the scaling table now uses the benchmark's own entry names and so
+  equals the idle figure (536, was 544 with suffixed names).
+
 ## [0.10.3] - 2026-10-28
 
 ### Fixed

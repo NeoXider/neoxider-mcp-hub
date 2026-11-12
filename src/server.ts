@@ -6,7 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { CatalogRepository } from "./catalog.js";
-import { describeHub } from "./description.js";
+import { describeHub, hubInstructions } from "./description.js";
 import { CapabilityHub } from "./manager.js";
 import { hubInputShape } from "./schema.js";
 import type { HubWireInput } from "./wire.js";
@@ -34,7 +34,10 @@ async function main(): Promise<void> {
   }
   const hub = new CapabilityHub(repository, pageChars === undefined ? {} : { pageChars });
   const { version } = JSON.parse(await readFile(path.join(packageDir, "package.json"), "utf8")) as { version: string };
-  const server = new McpServer({ name: "neoxider-mcp-hub", version });
+  // --no-instructions keeps the skill list out of initialize, for a host that already
+  // shows the tool description up front and would otherwise carry the list twice.
+  const instructions = process.argv.includes("--no-instructions") ? undefined : hubInstructions(repository);
+  const server = new McpServer({ name: "neoxider-mcp-hub", version }, instructions === undefined ? {} : { instructions });
   server.server.onclose = () => void hub.close();
 
   server.registerTool(

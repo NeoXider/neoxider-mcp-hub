@@ -26,6 +26,21 @@ const SERVERS = [
   { name: "playwright", package: "@playwright/mcp@0.0.79", note: "Browser automation" },
 ];
 
+// Skill entries for the skills measurement: one-line descriptions of the length people
+// write for real skills (60-120 characters), none of them specific to this machine.
+const SKILL_SAMPLE = [
+  ["code-review", "Review a diff for correctness bugs first, then reuse and simplification, with file and line references."],
+  ["web-research", "Signal-only web research: quick scan or deep dive, primary sources first, answer with links."],
+  ["release-notes", "Write a changelog entry and release notes from the commits since the last tag."],
+  ["sql-migrations", "Write reversible SQL migrations and check them against the current schema before applying."],
+  ["incident-triage", "Triage a production incident: scope, timeline, mitigations and a blameless summary."],
+  ["api-design", "Design or review an HTTP API: resources, errors, pagination, versioning and examples."],
+  ["test-writing", "Add focused tests for a change: the public contract first, then the edge cases it touches."],
+  ["docs-writing", "Write or update user documentation that matches the current behaviour, with runnable examples."],
+  ["perf-profiling", "Profile a slow path, find the hot spot with measurements, and propose the smallest fix."],
+  ["ml-experiment-review", "Review an ML experiment as a falsifiable, reproducible evidence package."],
+];
+
 // The heaviest real server in the catalog, so discovery is measured at its worst.
 const DISCOVERY_TARGET = "playwright";
 
@@ -35,6 +50,11 @@ const tokens = (value) => encode(typeof value === "string" ? value : JSON.string
 // Titles and annotations are omitted, so this is a conservative floor for the classic side.
 const toolCost = (tool) =>
   tokens({ name: tool.name, description: tool.description ?? "", inputSchema: tool.inputSchema ?? {} });
+
+const instructionCost = (client) => {
+  const instructions = client.getInstructions();
+  return instructions ? tokens(instructions) : 0;
+};
 
 async function withClient(command, args, env, run) {
   const transport = new StdioClientTransport({
@@ -75,7 +95,10 @@ async function measureHub() {
   ];
   return withClient(process.execPath, args, {}, async (client) => {
     const listed = await client.listTools(undefined, { timeout: 180_000 });
-    const staticTokens = listed.tools.reduce((sum, tool) => sum + toolCost(tool), 0);
+    // Initialize instructions are resident too: hosts that honour them put them in the
+    // system prompt next to the tool. The hub sends them only for a catalog with skills.
+    const instructionsTokens = instructionCost(client);
+    const staticTokens = listed.tools.reduce((sum, tool) => sum + toolCost(tool), 0) + instructionsTokens;
 
     // Runtime discovery: what a task actually spends to find and open one capability.
     const text = async (input) => {
@@ -102,6 +125,7 @@ async function measureHub() {
     return {
       toolCount: listed.tools.length,
       staticTokens,
+      instructionsTokens,
       discovery: {
         search: tokens(search),
         inspect: tokens(inspect),
@@ -117,13 +141,14 @@ async function measureHub() {
 // Starts the real hub against a synthetic catalog of `count` entries and reports what its
 // tools/list actually costs. Entry prose is sized to the real catalog's mean, so the curve
 // reflects catalogs like the ones people write rather than one-word placeholders.
-async function measureHubResident(count) {
+async function measureHubResident(count, extraEntries = []) {
   const template = JSON.parse(readFileSync(path.join(benchDir, "catalog.json"), "utf8"));
   const entries = [];
   for (let index = 0; index < count; index += 1) {
     const source = template.entries[index % template.entries.length];
-    entries.push({ ...source, name: `${source.name}-${String(index).padStart(2, "0")}` });
+    entries.push({ ...source, name: count === template.entries.length ? source.name : `${source.name}-${String(index).padStart(2, "0")}` });
   }
+  entries.push(...extraEntries);
   const scalingCatalog = path.join(snapshotDir, "scaling-catalog.tmp.json");
   mkdirSync(snapshotDir, { recursive: true });
   writeFileSync(scalingCatalog, JSON.stringify({ version: 1, entries }), "utf8");
@@ -135,7 +160,9 @@ async function measureHubResident(count) {
     ];
     return await withClient(process.execPath, args, {}, async (client) => {
       const listed = await client.listTools(undefined, { timeout: 180_000 });
-      return listed.tools.reduce((sum, tool) => sum + toolCost(tool), 0);
+      const tool = listed.tools.reduce((sum, entry) => sum + toolCost(entry), 0);
+      const instructions = instructionCost(client);
+      return extraEntries.length === 0 ? tool + instructions : { tool, instructions, total: tool + instructions };
     });
   } finally {
     rmSync(scalingCatalog, { force: true });
@@ -205,6 +232,17 @@ async function main() {
     });
   }
 
+  // What skills add. Ten skill entries with one-line descriptions of a typical length,
+  // on top of the four measured servers: the tool description gains a skill section and
+  // initialize gains instructions that tell the model to check them before each task.
+  const skills = await measureHubResident(4, SKILL_SAMPLE.map(([name, description]) => ({
+    kind: "skill",
+    name,
+    description,
+    trusted: true,
+    skill: { type: "file", path: "${packageDir}/data/skills/ml-experiment-review/SKILL.md" },
+  })));
+
   const report = {
     measuredAt: process.env.BENCH_TIMESTAMP ?? null,
     encoding: "o200k_base",
@@ -212,6 +250,7 @@ async function main() {
     classic: { servers: usable.length, tools: classicTools, staticTokens: classicTotal, meanTokensPerServer: Math.round(perServer) },
     hub: { staticTokens: hub.staticTokens, discovery: hub.discovery, scenarios },
     scaling,
+    skills: { count: SKILL_SAMPLE.length, servers: 4, toolTokens: skills.tool, instructionsTokens: skills.instructions, residentTokens: skills.total },
     savings: {
       staticRatio: Number((classicTotal / hub.staticTokens).toFixed(1)),
       staticPercent: scenarios.idle.percentSaved,
@@ -248,6 +287,7 @@ async function main() {
     );
   }
   console.log("");
+  console.log(`With ${SKILL_SAMPLE.length} skills: ${skills.tool.toLocaleString("en-US")} tool + ${skills.instructions.toLocaleString("en-US")} instructions = ${skills.total.toLocaleString("en-US")} resident tokens`);
   console.log(`Break-even: ~${report.savings.breakEvenDirect} direct discoveries, or ~${report.savings.breakEvenCautious} cautious ones, in a single session`);
 }
 

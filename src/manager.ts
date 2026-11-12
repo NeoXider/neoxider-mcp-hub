@@ -1,4 +1,5 @@
 import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   StdioClientTransport,
@@ -565,12 +566,16 @@ export class CapabilityHub {
       throw new Error(`Skill "${name}" exceeds the ${MAX_SKILL_BYTES}-byte safety limit`);
     }
     const content = await readFile(skillPath, "utf8");
+    // Skills name their own files by relative path (references/x.md, scripts/run.py), and
+    // only SKILL.md travels through the hub. The directory lets a model that can read
+    // files open those itself instead of guessing where the skill lives.
+    const directory = path.dirname(skillPath);
     return textResult(
-      `<skill_content name="${entry.name}">\n<skill_instructions>\n${content}\n</skill_instructions>\n</skill_content>`,
+      `<skill_content name="${entry.name}">\nBase directory for this skill: ${directory}\n<skill_instructions>\n${content}\n</skill_instructions>\n</skill_content>`,
       // Clients differ in what they surface: DSH renders content.text, while OpenCode reads
       // structuredContent only. Without the body here a skill arrives as a 64-character
       // metadata stub. The duplication costs tokens only on an explicit skill.load.
-      { name: entry.name, source: entry.source ?? skillPath, instructions: content },
+      { name: entry.name, source: entry.source ?? skillPath, directory, instructions: content },
     );
   }
 

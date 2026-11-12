@@ -161,3 +161,58 @@ test("resident description carries the catalog and degrades before it can bloat"
     `degradation must bound growth (3 entries: ${String(small.length)} chars, 60 entries: ${String(large.length)} chars)`,
   );
 });
+
+// A model that never hears about a skill never loads it. Claude Code defers MCP tool
+// descriptions behind its own tool search, so the initialize instructions are the one
+// place a skill list reaches the model before its first turn; they are asserted over the
+// real wire rather than as a string, because the SDK option is what carries them.
+test("initialize instructions list the skills, and only when there are skills", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "capability-hub-instructions-"));
+  const compiledRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const serverPath = path.join(compiledRoot, "src", "server.js");
+  const fixturePath = path.join(compiledRoot, "src", "fixture-echo.js");
+  const echo = {
+    kind: "mcp" as const,
+    name: "echo-server",
+    description: "Echo test server.",
+    trusted: true,
+    transport: { type: "stdio" as const, command: process.execPath, args: [fixturePath] },
+  };
+  const skill = {
+    kind: "skill" as const,
+    name: "timecodes",
+    description: "Make stream timecodes from a VTT transcript.",
+    trusted: true,
+    skill: { type: "file" as const, path: "unused.md" },
+  };
+
+  const initialize = async (label: string, entries: unknown[], extraArgs: string[] = []) => {
+    const catalogPath = path.join(root, `${label}.json`);
+    await writeFile(catalogPath, JSON.stringify({ version: 1, entries }), "utf8");
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [serverPath, "--catalog", catalogPath, "--state", path.join(root, `state-${label}`), ...extraArgs],
+      stderr: "pipe",
+    });
+    const client = new Client({ name: "capability-hub-instructions", version: "0.1.0" });
+    try {
+      await client.connect(transport);
+      const listed = await client.listTools();
+      return { instructions: client.getInstructions(), description: listed.tools[0]?.description ?? "" };
+    } finally {
+      await client.close();
+    }
+  };
+
+  const withSkill = await initialize("with-skill", [echo, skill]);
+  assert.match(withSkill.instructions ?? "", /at the start of every task/);
+  assert.match(withSkill.instructions ?? "", /timecodes: Make stream timecodes/);
+  assert.match(withSkill.description, /Skills — before starting a task/, "the tool description carries the list too");
+
+  const serversOnly = await initialize("servers-only", [echo]);
+  assert.equal(serversOnly.instructions, undefined, "a server-only catalog pays nothing extra");
+
+  const optedOut = await initialize("opted-out", [echo, skill], ["--no-instructions"]);
+  assert.equal(optedOut.instructions, undefined);
+  assert.match(optedOut.description, /timecodes: Make stream timecodes/, "opting out keeps the description list");
+});

@@ -10,10 +10,10 @@
   <a href="https://github.com/NeoXider/neoxider-mcp-hub/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/NeoXider/neoxider-mcp-hub/actions/workflows/ci.yml/badge.svg" /></a>
   <img alt="Node.js 22.19+" src="https://img.shields.io/badge/Node.js-22.19%2B-49e7c6" />
   <img alt="MCP SDK 1.32" src="https://img.shields.io/badge/MCP%20SDK-1.32-8b79ff" />
-  <img alt="Context saved" src="https://img.shields.io/badge/context-93.2%25%20smaller-49e7c6" />
+  <img alt="Context saved" src="https://img.shields.io/badge/context-91.4%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
   <a href="https://www.npmjs.com/package/@neoxider/mcp-hub"><img alt="npm" src="https://img.shields.io/npm/v/@neoxider/mcp-hub?color=8b79ff" /></a>
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.10.3-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.11.0-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -32,8 +32,9 @@ NeoXider MCP Hub is a stdio MCP server that exposes **one** tool, `capability_hu
 
 | | |
 |---|---|
-| **One resident tool** | The host carries about 420 tokens, however many servers you configure. |
+| **One resident tool** | The host carries about 540 tokens, however many servers you configure. |
 | **MCP servers and skills together** | One catalog, one `search`, one trust model. Servers start on demand; skill bodies load one at a time. |
+| **Skills the model remembers** | The skill list reaches the model at session start, with a standing instruction to load what fits the task before it begins. |
 | **Stopped, not just hidden** | A capability is a process that is off until the model asks for it. `disable` stops it. |
 | **Human approval** | A model can *propose* a server or a skill. Only a person, outside the model, can approve it. |
 | **Any MCP client** | A plain stdio server: OpenCode, Claude Code, Claude Desktop, Cursor, DeepSeek Harness. |
@@ -203,6 +204,8 @@ node dist/src/server.js --catalog /abs/path/catalog.json --state /abs/path/state
 
 Approve a server once, and every client that uses that `--state` can start it. Give a client its own `--state` when you want its approvals kept apart.
 
+Add `--no-instructions` for a client that should not receive the skill list at initialize (see [Skills the model actually uses](#skills-the-model-actually-uses)).
+
 Then start with:
 
 ```json
@@ -249,6 +252,17 @@ A skill needs no `enable`. Find it, read its permissions, load it:
 ```
 
 The body comes back as `<skill_content name="…"><skill_instructions>…`, and the model works from it. It never enters the system prompt, so an unused skill costs nothing.
+
+The loaded body starts with the skill's own directory, so a model that can read files opens the skill's `references/` and `scripts/` itself.
+
+### Skills the model actually uses
+
+A skill only helps if the model remembers to load it, and nothing in a task makes a model reach for an instruction file it has never been told about. So the hub announces its skills in two places, both written when the hub starts and never changed mid-session, so the prompt cache stays intact:
+
+- **The `instructions` returned at initialize.** Hosts such as Claude Code put them in the system prompt, and with tool search on they are the only hub text a model reads before its first turn. They say to check the skills at the start of every task and to load each one that fits with `skill.load` before beginning, followed by the list.
+- **The `capability_hub` description.** Skills get their own section, `Skills — before starting a task, load each skill below that fits it…`, with a one-line description each, capped at 120 characters. The section has its own 1,500-character budget, so a verbose server description no longer pushes every skill down to a bare name; a long list degrades to names, then to a count with a pointer to `search`.
+
+A catalog without skills sends no instructions and describes itself exactly as before, so it pays nothing for this. With skills, [`bench/measure.mjs`](bench/measure.mjs) measures the four benchmark servers plus ten skills at 785 tokens of tool definition and 296 of instructions, 1,081 resident tokens in all. A host that already shows the tool description up front carries the list twice; start the hub with `--no-instructions` there to keep it in the description only.
 
 - MCP transports: `stdio` and `streamable-http`.
 - Templates: `${catalogDir}`, `${packageDir}` and explicitly allowlisted `${config:key}` values.
@@ -329,9 +343,9 @@ pnpm bench
 | `@modelcontextprotocol/server-sequential-thinking` | Structured reasoning | 1 | 851 |
 | `@playwright/mcp` | Browser automation | 24 | 3,383 |
 | **Total — classic MCP** | four servers, always resident | **47** | **6,200** |
-| **Total — Capability Hub** | one broker tool | **1** | **422** |
+| **Total — Capability Hub** | one broker tool | **1** | **536** |
 
-**The permanent cost drops 93.2%, or 14.7x.** That is the part of the prompt you pay for on every single turn, whether or not the task touches a tool.
+**The permanent cost drops 91.4%, or 11.6x.** That is the part of the prompt you pay for on every single turn, whether or not the task touches a tool.
 
 <details>
 <summary><strong>The saving grows with your catalog</strong></summary>
@@ -340,11 +354,11 @@ The hub publishes one schema no matter how many servers you configure, so the cl
 
 | Servers configured | Classic tokens | Hub resident | Saved |
 |---:|---:|---:|---:|
-| 4 | 6,200 | 430 | 93.1% |
-| 10 | 15,500 | 584 | 96.2% |
-| 20 | 31,000 | 826 | 97.3% |
-| 30 | 46,500 | 468 | 99.0% |
-| 60 | 93,000 | 595 | **99.4%** |
+| 4 | 6,200 | 536 | 91.4% |
+| 10 | 15,500 | 698 | 95.5% |
+| 20 | 31,000 | 940 | 97.0% |
+| 30 | 46,500 | 582 | 98.7% |
+| 60 | 93,000 | 709 | **99.2%** |
 
 The drop at 30 is the degradation firing: full descriptions no longer fit the budget, the list falls back to names, and the resident cost roughly halves.
 
@@ -357,9 +371,9 @@ The hub is not free: what the classic setup pays once up front, the hub pays at 
 
 | Scenario | Path | Hub tokens | vs 6,200 |
 |---|---|---:|---:|
-| **idle** — task needs no capability | resident schema only | 422 | **93.2%** saved |
-| **direct** — task opens one capability | `search` + `tools` with a query | 554 | **91.1%** saved |
-| **cautious** — also reviews permissions, reads the full list | `search` + `inspect` + `enable` + `tools` | 1,195 | 80.7% saved |
+| **idle** — task needs no capability | resident schema only | 536 | **91.4%** saved |
+| **direct** — task opens one capability | `search` + `tools` with a query | 668 | **89.2%** saved |
+| **cautious** — also reviews permissions, reads the full list | `search` + `inspect` + `enable` + `tools` | 1,309 | 78.9% saved |
 
 The direct row still charges a `search`, which the inlined catalog list often makes unnecessary — a conservative choice, since the bias should run against our own number.
 

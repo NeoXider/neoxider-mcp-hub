@@ -57,9 +57,9 @@ pnpm bench
 | `@modelcontextprotocol/server-sequential-thinking` | Structured reasoning | 1 | 851 |
 | `@playwright/mcp` | Browser automation | 24 | 3,383 |
 | **Classic MCP — four servers** | always resident | **47** | **6,200** |
-| **Capability Hub** | one broker tool | **1** | **422** |
+| **Capability Hub** | one broker tool | **1** | **536** |
 
-**93.2% smaller. 14.7x.**
+**91.4% smaller. 11.6x.**
 
 Worth noting how uneven the distribution is. `sequential-thinking` exposes *one* tool
 and still costs 851 tokens, because its schema is large. Tool count is a bad proxy for
@@ -80,14 +80,14 @@ the measured mean of 1,550 tokens per server:
 
 | Servers configured | Classic tokens | Hub resident | Saved |
 |---:|---:|---:|---:|
-| 4 | 6,200 | 430 | 93.1% |
-| 7 | 10,850 | 507 | 95.3% |
-| 10 | 15,500 | 584 | 96.2% |
-| 15 | 23,250 | 705 | 97.0% |
-| 20 | 31,000 | 826 | 97.3% |
-| 30 | 46,500 | 468 | 99.0% |
-| 43 | 66,650 | 523 | 99.2% |
-| 60 | 93,000 | 595 | **99.4%** |
+| 4 | 6,200 | 536 | 91.4% |
+| 7 | 10,850 | 621 | 94.3% |
+| 10 | 15,500 | 698 | 95.5% |
+| 15 | 23,250 | 819 | 96.5% |
+| 20 | 31,000 | 940 | 97.0% |
+| 30 | 46,500 | 582 | 98.7% |
+| 43 | 66,650 | 637 | 99.0% |
+| 60 | 93,000 | 709 | **99.2%** |
 
 The drop between 20 and 30 entries is the degradation firing: the full descriptions no
 longer fit the budget, the list falls back to names, and the resident cost roughly halves.
@@ -107,9 +107,9 @@ as typical. Three scenarios, ordered by how often they actually occur:
 
 | Scenario | Path | Hub tokens | vs 6,200 |
 |---|---|---:|---:|
-| **idle** — task needs no capability | resident schema only | 422 | **93.2%** saved |
-| **direct** — task opens one, knows roughly what it wants | `search` + `tools` with a query | 554 | **91.1%** saved |
-| **cautious** — agent also reviews permissions and reads the full list | `search` + `inspect` + `enable` + `tools` | 1,195 | 80.7% saved |
+| **idle** — task needs no capability | resident schema only | 536 | **91.4%** saved |
+| **direct** — task opens one, knows roughly what it wants | `search` + `tools` with a query | 668 | **89.2%** saved |
+| **cautious** — agent also reviews permissions and reads the full list | `search` + `inspect` + `enable` + `tools` | 1,309 | 78.9% saved |
 
 Two things make the direct path cheap, and both were already in the implementation while
 the benchmark was ignoring them:
