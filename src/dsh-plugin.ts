@@ -27,6 +27,7 @@ export const Config = z.object({
   stateDir: z.string().optional(),
   pageChars: z.number().int().nonnegative().optional(),
   toolCallTimeoutMs: z.number().int().positive().optional(),
+  clientId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).optional(),
 });
 
 export interface CapabilityHubPluginConfig {
@@ -34,6 +35,7 @@ export interface CapabilityHubPluginConfig {
   stateDir?: string;
   pageChars?: number;
   toolCallTimeoutMs?: number;
+  clientId?: string;
 }
 
 // A hub call fans out into child MCP servers and skill loads, so the ceiling sits well
@@ -96,6 +98,7 @@ export async function apply(
   const repository = new CatalogRepository(
     config.catalogPath ?? path.join(packageDir, "data", "catalog.json"),
     config.stateDir ?? path.join(packageDir, "data", "state"),
+    config.clientId,
   );
   await repository.load();
   const hub = new CapabilityHub(repository, config.pageChars === undefined ? {} : { pageChars: config.pageChars });

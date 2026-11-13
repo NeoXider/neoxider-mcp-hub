@@ -5,6 +5,24 @@ All notable changes to NeoXider MCP Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-11-13
+
+### Added
+
+- **An entry can name the clients it belongs to.** Not every capability suits every
+  client, and until now one catalog meant one view of it. A catalog entry may carry a
+  `clients` list of client ids, and each process declares its own id at startup:
+  `--client <id>` on the stdio server, `clientId` in the Config of the Harness plugin.
+  An entry that names clients is visible only to those ids — in the tool description, in
+  the initialize instructions, in `search` and `inspect`, and at call time, where any
+  other client gets the same answer as for a name that does not exist. A process without
+  an id serves only the unrestricted entries, so a client you never pass `--client` sees
+  the same catalog, byte for byte, as before: existing clients pay nothing.
+- The first entry using it: **`choirboy-prompt`**, a skill scoped to OpenCode and Codex.
+  It is [howdeploy/choirboy-prompt](https://github.com/howdeploy/choirboy-prompt) @
+  `70232c4`, MIT, vendored as-is — the whole pack including its persona and lore
+  sections — and added on the operator's instruction on 2026-11-13.
+
 ## [0.11.0] - 2026-11-13
 
 ### Added

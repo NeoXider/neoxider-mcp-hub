@@ -13,7 +13,7 @@
   <img alt="Context saved" src="https://img.shields.io/badge/context-91.4%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
   <a href="https://www.npmjs.com/package/@neoxider/mcp-hub"><img alt="npm" src="https://img.shields.io/npm/v/@neoxider/mcp-hub?color=8b79ff" /></a>
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.11.0-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.12.0-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -205,6 +205,8 @@ node dist/src/server.js --catalog /abs/path/catalog.json --state /abs/path/state
 Approve a server once, and every client that uses that `--state` can start it. Give a client its own `--state` when you want its approvals kept apart.
 
 Add `--no-instructions` for a client that should not receive the skill list at initialize (see [Skills the model actually uses](#skills-the-model-actually-uses)).
+
+Not every capability belongs to every client. An entry may name the clients it belongs to with a `clients` field, a list of client ids such as `["opencode","codex"]`. Each process declares its own id at startup: `--client opencode` on the stdio server, `clientId: opencode` in the plugin Config on DeepSeek Harness. An entry that names clients is then visible only to those ids — in the tool description, in the initialize instructions, in `search` and `inspect`, and at call time, where another client gets the same answer as for a name that does not exist. A process that declares no id serves only the unrestricted entries, so a client you never pass `--client` sees exactly what it saw before.
 
 Then start with:
 

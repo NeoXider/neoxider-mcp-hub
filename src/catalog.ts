@@ -63,8 +63,10 @@ export class CatalogRepository {
 
   #entries = new Map<string, CapabilityEntry>();
   #configs: PersistedConfig = structuredClone(EMPTY_CONFIG);
+  #clientId: string | undefined;
 
-  constructor(catalogPath: string, stateDir: string) {
+  constructor(catalogPath: string, stateDir: string, clientId?: string) {
+    this.#clientId = clientId;
     this.catalogPath = path.resolve(catalogPath);
     this.stateDir = path.resolve(stateDir);
     this.catalogDir = path.dirname(this.catalogPath);
@@ -93,11 +95,20 @@ export class CatalogRepository {
   }
 
   all(): CapabilityEntry[] {
-    return [...this.#entries.values()];
+    return [...this.#entries.values()].filter((entry) => this.visibleTo(entry));
   }
 
   get(name: string): CapabilityEntry | undefined {
-    return this.#entries.get(name);
+    const entry = this.#entries.get(name);
+    return entry !== undefined && this.visibleTo(entry) ? entry : undefined;
+  }
+
+  // `clients` limits an entry to the client ids named in it. The operator declares each
+  // process's id at startup (--client on the server, clientId on the plugin); a process
+  // without an id sees only the unrestricted entries, so what a host learns at session start
+  // from description and instructions matches what that host can actually enable or call.
+  private visibleTo(entry: CapabilityEntry): boolean {
+    return entry.clients === undefined || (this.#clientId !== undefined && entry.clients.includes(this.#clientId));
   }
 
   search(query = "", kind?: "mcp" | "skill"): CapabilityEntry[] {

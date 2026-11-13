@@ -14,6 +14,7 @@ export interface CapabilityBase {
   trusted: boolean;
   source?: string;
   permissions?: string[];
+  clients?: string[];
 }
 
 export interface StdioTransportDefinition {

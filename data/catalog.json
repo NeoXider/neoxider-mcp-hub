@@ -5,14 +5,22 @@
       "kind": "mcp",
       "name": "demo-echo",
       "description": "Bundled local MCP used to verify dynamic discovery, enable, tool listing, calls, and disable.",
-      "tags": ["demo", "test", "local"],
+      "tags": [
+        "demo",
+        "test",
+        "local"
+      ],
       "trusted": true,
       "source": "bundled test fixture",
-      "permissions": ["Starts one local Node.js child process"],
+      "permissions": [
+        "Starts one local Node.js child process"
+      ],
       "transport": {
         "type": "stdio",
         "command": "node",
-        "args": ["${packageDir}/dist/src/fixture-echo.js"]
+        "args": [
+          "${packageDir}/dist/src/fixture-echo.js"
+        ]
       },
       "configurable": []
     },
@@ -20,13 +28,51 @@
       "kind": "skill",
       "name": "ml-experiment-review",
       "description": "Review an ML experiment as a falsifiable, reproducible evidence package.",
-      "tags": ["ml", "experiment", "reproducibility", "review"],
+      "tags": [
+        "ml",
+        "experiment",
+        "reproducibility",
+        "review"
+      ],
       "trusted": true,
       "source": "bundled example skill",
-      "permissions": ["Read one local Markdown file"],
+      "permissions": [
+        "Read one local Markdown file"
+      ],
       "skill": {
         "type": "file",
         "path": "${packageDir}/data/skills/ml-experiment-review/SKILL.md"
+      }
+    },
+    {
+      "kind": "skill",
+      "name": "choirboy-prompt",
+      "description": "Persona, lore, security audit frame.",
+      "tags": [
+        "choirboy",
+        "security",
+        "audit",
+        "pentest",
+        "persona",
+        "reverse"
+      ],
+      "trusted": true,
+      "source": "https://github.com/howdeploy/choirboy-prompt @ 70232c4 (MIT), local checkout D:/Git/_ext/choirboy-prompt, reviewed 2026-11-13",
+      "permissions": [
+        "Reads one local Markdown file",
+        "Loads the author's persona, lore and user-notes bundle, not only the security layer",
+        "The tools its runbook names are not installed by it; the hub runs nothing of it"
+      ],
+      "clients": [
+        "opencode",
+        "codex"
+      ],
+      "skill": {
+        "type": "file",
+        "path": "D:/Git/_ext/choirboy-prompt/skills/load-context/SKILL.md",
+        "allowedRoots": [
+          "D:/Git/_ext/choirboy-prompt/skills/load-context"
+        ]
       }
     }
   ]

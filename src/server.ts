@@ -23,7 +23,12 @@ async function main(): Promise<void> {
   const catalogPath = path.resolve(argumentValue("--catalog") ?? path.join(packageDir, "data", "catalog.json"));
   const stateDir = path.resolve(argumentValue("--state") ?? path.join(packageDir, "data", "state"));
 
-  const repository = new CatalogRepository(catalogPath, stateDir);
+  const clientId = argumentValue("--client");
+  if (clientId !== undefined && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clientId)) {
+    throw new Error(`--client must be a lowercase name like "codex", got "${clientId}"`);
+  }
+
+  const repository = new CatalogRepository(catalogPath, stateDir, clientId);
   await repository.load();
   // --page-chars wins over CAPABILITY_HUB_PAGE_CHARS; 0 turns paging off.
   // An empty value counts as unset: Number("") is 0, which would silently turn paging off.
