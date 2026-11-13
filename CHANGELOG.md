@@ -20,8 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same catalog, byte for byte, as before: existing clients pay nothing.
 - The first entry using it: **`choirboy-prompt`**, a skill scoped to OpenCode and Codex.
   It is [howdeploy/choirboy-prompt](https://github.com/howdeploy/choirboy-prompt) @
-  `70232c4`, MIT, vendored as-is — the whole pack including its persona and lore
-  sections — and added on the operator's instruction on 2026-11-13.
+  `70232c4`, MIT, its whole pack as-is including the persona and lore sections —
+  the hub reads it from the checkout named in its catalog entry — and added on the
+  operator's instruction on 2026-11-13.
 
 ## [0.11.0] - 2026-11-13
 
