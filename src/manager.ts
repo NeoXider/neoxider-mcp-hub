@@ -28,6 +28,10 @@ const SECRET_KEY_PATTERN = /(secret|token|password|passwd|api[-_.]?key|credentia
 const MAX_SKILL_BYTES = 256 * 1024;
 const MAX_SEARCH_RESULTS = 50;
 const MAX_TOOL_RESULTS = 60;
+// A query that matches nothing on a server this small gets the whole list back: every
+// model in a run against web-search-neo (two tools, neither with "chrome" in its
+// description) asked for "chrome", got nothing, and spent a second call to list them.
+const SMALL_SERVER_TOOLS = 10;
 const MAX_PROPOSAL_RESULTS = 25;
 const MAX_FIELD_CHARS = 400;
 const MAX_TAGS = 10;
@@ -382,7 +386,9 @@ export class CapabilityHub {
     // A server with a hundred tools would otherwise dump all of them into context.
     // The query narrows the list first, and the cap bounds the worst case.
     const { matched, partial } = matchTools(live.tools, query);
-    const limited = matched.slice(0, MAX_TOOL_RESULTS);
+    const everything = matched.length === 0 && live.tools.length <= SMALL_SERVER_TOOLS;
+    const shown = everything ? live.tools : matched;
+    const limited = shown.slice(0, MAX_TOOL_RESULTS);
     // An empty list has two very different causes that used to look identical: a server
     // that published nothing, and a query that matched nothing. The first is the more
     // confusing one — a capability whose backing application is not running starts
@@ -392,11 +398,13 @@ export class CapabilityHub {
     const note =
       live.tools.length === 0
         ? `"${name}" started but published no tools. Its backing application is probably not running; start it and call this action again.`
-        : matched.length === 0
-          ? `No tool on "${name}" matched ${JSON.stringify(query ?? "")}. Call this action without a query to see all ${String(live.tools.length)}.`
-          : partial
-            ? `No tool on "${name}" matched every word of ${JSON.stringify(query ?? "")}; these match some of them, best first.`
-            : undefined;
+        : everything
+          ? `No tool on "${name}" matched ${JSON.stringify(query ?? "")}; here are all ${String(live.tools.length)} it has.`
+          : matched.length === 0
+            ? `No tool on "${name}" matched ${JSON.stringify(query ?? "")}. Call this action without a query to see all ${String(live.tools.length)}.`
+            : partial
+              ? `No tool on "${name}" matched every word of ${JSON.stringify(query ?? "")}; these match some of them, best first.`
+              : undefined;
     return jsonResult({
       server: name,
       tools: limited.map((tool) => ({
@@ -406,7 +414,7 @@ export class CapabilityHub {
       })),
       total: live.tools.length,
       matched: matched.length,
-      truncated: limited.length !== matched.length,
+      truncated: limited.length !== shown.length,
       schemasIncluded: includeSchema,
       ...(note === undefined ? {} : { note }),
     });
@@ -646,13 +654,19 @@ export class CapabilityHub {
 
   private requireMcp(name: string): McpCapabilityEntry {
     const entry = this.requireEntry(name);
-    if (entry.kind !== "mcp") throw new Error(`Capability "${name}" is a skill, not an MCP server`);
+    if (entry.kind !== "mcp") {
+      throw new Error(`Capability "${name}" is a skill, not an MCP server; load it with action "skill.load" and name "${name}"`);
+    }
     return entry;
   }
 
   private requireSkill(name: string): SkillCapabilityEntry {
     const entry = this.requireEntry(name);
-    if (entry.kind !== "skill") throw new Error(`Capability "${name}" is an MCP server, not a skill`);
+    if (entry.kind !== "skill") {
+      throw new Error(
+        `Capability "${name}" is an MCP server, not a skill; list its tools with action "tools" or run one with action "call"`,
+      );
+    }
     return entry;
   }
 

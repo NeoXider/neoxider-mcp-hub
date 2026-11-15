@@ -6,7 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { CatalogRepository } from "./catalog.js";
-import { describeHub, hubInstructions } from "./description.js";
+import { declaredToolName, describeHub, hubInstructions } from "./description.js";
 import { CapabilityHub } from "./manager.js";
 import { hubInputShape } from "./schema.js";
 import type { HubWireInput } from "./wire.js";
@@ -28,6 +28,13 @@ async function main(): Promise<void> {
     throw new Error(`--client must be a lowercase name like "codex", got "${clientId}"`);
   }
 
+  // The name the client lists this tool under, which the instructions must use (see
+  // hubInstructions). Known for OpenCode; any other client whose name differs passes it.
+  const toolName = argumentValue("--tool-name") ?? declaredToolName(clientId);
+  if (!/^[A-Za-z0-9_.-]{1,128}$/.test(toolName)) {
+    throw new Error(`--tool-name must be a tool name like "capability_hub_capability_hub", got "${toolName}"`);
+  }
+
   const repository = new CatalogRepository(catalogPath, stateDir, clientId);
   await repository.load();
   // --page-chars wins over CAPABILITY_HUB_PAGE_CHARS; 0 turns paging off.
@@ -41,7 +48,7 @@ async function main(): Promise<void> {
   const { version } = JSON.parse(await readFile(path.join(packageDir, "package.json"), "utf8")) as { version: string };
   // --no-instructions keeps the skill list out of initialize, for a host that already
   // shows the tool description up front and would otherwise carry the list twice.
-  const instructions = process.argv.includes("--no-instructions") ? undefined : hubInstructions(repository);
+  const instructions = process.argv.includes("--no-instructions") ? undefined : hubInstructions(repository, toolName);
   const server = new McpServer({ name: "neoxider-mcp-hub", version }, instructions === undefined ? {} : { instructions });
   server.server.onclose = () => void hub.close();
 

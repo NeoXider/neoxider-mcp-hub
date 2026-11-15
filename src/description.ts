@@ -84,18 +84,41 @@ export function describeHub(repository: CatalogRepository): string {
   return sections.join("\n");
 }
 
+export const HUB_TOOL_NAME = "capability_hub";
+
+// What a client calls this tool when it lists it to the model, for a client whose naming
+// is known and the server key the README uses (`capability_hub`). OpenCode joins the
+// server key and the tool name with "_" (`McpCatalog.toolName`); Claude Code writes
+// `mcp__<server>__<tool>`.
+const CLIENT_TOOL_NAMES: Readonly<Record<string, string>> = {
+  opencode: "capability_hub_capability_hub",
+  "claude-code": "mcp__capability_hub__capability_hub",
+};
+
+export function declaredToolName(clientId?: string): string {
+  return (clientId === undefined ? undefined : CLIENT_TOOL_NAMES[clientId]) ?? HUB_TOOL_NAME;
+}
+
 // The MCP `instructions` a server returns at initialize. Hosts such as Claude Code put
 // them in the system prompt, and that is the one place a model reads before its first
 // turn: with tool search on, Claude Code defers the tool description itself until the
 // model searches for a tool, so a skill list kept only there is never seen at the start
 // of a task. Without skills there is nothing a model would otherwise miss, so nothing is
 // sent and a server-only catalog pays no extra resident tokens.
-export function hubInstructions(repository: CatalogRepository): string | undefined {
+//
+// The tool is named as the client declares it. An open-weight model always writes its
+// call as text (`<tool_call><function=NAME>…`), and the model server turns that text
+// into a tool call only when NAME is a tool the request declared. Told "capability_hub"
+// while OpenCode declares `capability_hub_capability_hub`, a model wrote the name it was
+// told, and every such call reached the chat as text and never ran.
+export function hubInstructions(repository: CatalogRepository, toolName = HUB_TOOL_NAME): string | undefined {
   const skills = repository.all().filter((entry) => entry.kind === "skill");
   if (skills.length === 0) return undefined;
   return (
-    "capability_hub holds skills: task instructions that stay out of your context until loaded. " +
-    'Check them at the start of every task, and when one fits, call capability_hub with {"action":"skill.load","name":"<skill>"} ' +
+    // OpenCode has a `skill` tool of its own, and a model told only "holds skills" asked it
+    // for a hub skill first and got an error.
+    `${toolName} holds skills: task instructions that stay out of your context until loaded, and only ${toolName} loads them. ` +
+    `Check them at the start of every task, and when one fits, call ${toolName} with {"action":"skill.load","name":"<skill>"} ` +
     "before you begin and follow what it returns. MCP servers in the same catalog start on demand; the tool description lists them.\n" +
     skillListing(skills, "Skills")
   );

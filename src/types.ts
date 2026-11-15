@@ -15,6 +15,7 @@ export interface CapabilityBase {
   source?: string;
   permissions?: string[];
   clients?: string[];
+  excludeClients?: string[];
 }
 
 export interface StdioTransportDefinition {

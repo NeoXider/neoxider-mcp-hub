@@ -740,6 +740,9 @@ test("an empty tool list explains which of its two causes happened", async () =>
     assert.equal(unmatched.matched, 0);
     assert.equal(unmatched.total, 4);
     assert.match(unmatched.note, /matched/, "the query is blamed, not the server");
+    // Four tools fit in one answer, so the miss lists them instead of costing another call.
+    assert.equal(unmatched.tools.length, 4);
+    assert.match(unmatched.note, /here are all 4 it has/);
     assert.doesNotMatch(unmatched.note, /not running/, "a healthy server is not called broken");
     assert.match(unmatched.note, /all 4/, "the caller is told how many it could see instead");
 

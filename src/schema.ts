@@ -14,6 +14,7 @@ const capabilityBaseSchema = z.object({
   source: z.string().max(2_000).optional(),
   permissions: stringList,
   clients: z.array(nameSchema).max(20).optional(),
+  excludeClients: z.array(nameSchema).max(20).optional(),
 });
 
 const stdioTransportSchema = z.object({

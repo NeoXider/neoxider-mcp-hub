@@ -8,6 +8,7 @@ import {
   BASE_DESCRIPTION,
   INLINE_SKILL_CHAR_BUDGET,
   SKILL_LINE_CHARS,
+  declaredToolName,
   describeHub,
   hubInstructions,
   oneLine,
@@ -74,6 +75,21 @@ test("initialize instructions tell the model to check skills before it starts", 
   assert.match(instructions, /\{"action":"skill\.load","name":"<skill>"\}/);
   assert.match(instructions, /game-research: Answer game questions/);
   assert.doesNotMatch(instructions, /server-000/, "servers stay in the tool description, not here");
+});
+
+test("instructions name the tool the way the client declares it", async () => {
+  const repository = await repositoryOf([skill("game-research", "Answer game questions.")]);
+  // OpenCode lists it as capability_hub_capability_hub; a model told the bare name wrote
+  // that, the model server found no such tool, and the call stayed text in the chat.
+  const opencode = hubInstructions(repository, declaredToolName("opencode")) ?? "";
+  assert.match(opencode, /^capability_hub_capability_hub holds skills/);
+  assert.match(opencode, /call capability_hub_capability_hub with \{"action":"skill\.load"/);
+  assert.doesNotMatch(opencode.replace(/capability_hub_capability_hub/g, ""), /capability_hub/, "no bare name left");
+  assert.equal(declaredToolName(undefined), "capability_hub");
+  assert.equal(declaredToolName("claude-code"), "mcp__capability_hub__capability_hub");
+  assert.equal(declaredToolName("codex"), "capability_hub", "an unknown naming keeps the tool's own name");
+  assert.match(opencode, /only capability_hub_capability_hub loads them/, "not the client's own skill tool");
+  assert.equal(hubInstructions(repository), hubInstructions(repository, "capability_hub"), "the default is unchanged");
 });
 
 test("one long skill description cannot crowd out the rest", async () => {

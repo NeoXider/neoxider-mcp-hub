@@ -103,12 +103,15 @@ export class CatalogRepository {
     return entry !== undefined && this.visibleTo(entry) ? entry : undefined;
   }
 
-  // `clients` limits an entry to the client ids named in it. The operator declares each
-  // process's id at startup (--client on the server, clientId on the plugin); a process
-  // without an id sees only the unrestricted entries, so what a host learns at session start
-  // from description and instructions matches what that host can actually enable or call.
+  // `clients` limits an entry to the client ids named in it; `excludeClients` hides it
+  // from the ids named there and wins over `clients`. The operator declares each process's
+  // id at startup (--client on the server, clientId on the plugin); a process without an
+  // id sees only the entries `clients` does not restrict, so what a host learns at session
+  // start from description and instructions matches what that host can enable or call.
   private visibleTo(entry: CapabilityEntry): boolean {
-    return entry.clients === undefined || (this.#clientId !== undefined && entry.clients.includes(this.#clientId));
+    const id = this.#clientId;
+    if (id !== undefined && entry.excludeClients?.includes(id) === true) return false;
+    return entry.clients === undefined || (id !== undefined && entry.clients.includes(id));
   }
 
   search(query = "", kind?: "mcp" | "skill"): CapabilityEntry[] {

@@ -5,6 +5,39 @@ All notable changes to NeoXider MCP Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-11-15
+
+### Fixed
+
+- **A model wrote its hub call into the chat as text, and it never ran.** An open-weight
+  model writes every call as `<tool_call><function=NAME>…`, and the model server turns
+  that into a tool call only when NAME is a tool the client declared. The initialize
+  instructions told the model to "call capability_hub", but OpenCode declares the tool
+  as `capability_hub_capability_hub`, so the model wrote the name it was told: in OpenCode
+  runs on `nemotron-3.5-lightning-free` the first call of 3 runs out of 3 went to an
+  "unavailable tool `capability_hub`", and a server that only converts declared names
+  left the same call in the chat as text. The instructions now name the tool as the
+  client lists it: `--client opencode` gives `capability_hub_capability_hub`,
+  `--client claude-code` gives `mcp__capability_hub__capability_hub`, and `--tool-name`
+  sets it for any other client or server key. Re-run after the fix, none of the calls
+  went to the bare name.
+- **OpenCode's own `skill` tool was asked for hub skills first.** The instructions now
+  say that only the hub tool loads them.
+- **A `tools` query that matched nothing on a small server was a dead end.** Every model
+  asked web-search-neo (two tools) for "chrome", got an empty list and spent a second call
+  listing everything. A server with ten tools or fewer now answers a miss with all of
+  them, `matched: 0` and a note saying so; a larger one still asks for a call without
+  the query.
+- Calling a skill with an MCP action, or a server with `skill.load`, now says which
+  action to use instead.
+
+### Added
+
+- **`excludeClients` on a catalog entry** hides it from the client ids it names, so a
+  capability can be switched off for one harness (`["claude-code"]`) without listing
+  every other one in `clients`. A process with no id is not excluded, and an exclusion
+  wins over `clients`.
+
 ## [0.12.0] - 2026-11-13
 
 ### Added

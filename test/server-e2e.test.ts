@@ -215,4 +215,9 @@ test("initialize instructions list the skills, and only when there are skills", 
   const optedOut = await initialize("opted-out", [echo, skill], ["--no-instructions"]);
   assert.equal(optedOut.instructions, undefined);
   assert.match(optedOut.description, /timecodes: Make stream timecodes/, "opting out keeps the description list");
+
+  const opencode = await initialize("opencode", [echo, skill], ["--client", "opencode"]);
+  assert.match(opencode.instructions ?? "", /call capability_hub_capability_hub with/, "named as OpenCode declares it");
+  const named = await initialize("named", [echo, skill], ["--tool-name", "mcp__hub__capability_hub"]);
+  assert.match(named.instructions ?? "", /call mcp__hub__capability_hub with/);
 });

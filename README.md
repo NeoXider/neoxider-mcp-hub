@@ -13,7 +13,7 @@
   <img alt="Context saved" src="https://img.shields.io/badge/context-91.4%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
   <a href="https://www.npmjs.com/package/@neoxider/mcp-hub"><img alt="npm" src="https://img.shields.io/npm/v/@neoxider/mcp-hub?color=8b79ff" /></a>
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.12.0-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.13.0-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -129,7 +129,8 @@ From a checkout instead (after `pnpm build`), replace `npx -y @neoxider/mcp-hub`
       "command": [
         "npx", "-y", "@neoxider/mcp-hub",
         "--catalog", "/abs/path/catalog.json",
-        "--state", "/abs/path/state"
+        "--state", "/abs/path/state",
+        "--client", "opencode"
       ],
       "timeout": 360000,
       "enabled": true
@@ -140,13 +141,17 @@ From a checkout instead (after `pnpm build`), replace `npx -y @neoxider/mcp-hub`
 
 A call that starts a child server can take a while; raise `timeout` if the client cuts such calls off.
 
+Keep `--client opencode`: OpenCode lists the tool as `capability_hub_capability_hub` (server key, `_`, tool name), and the id is how the hub knows to call it that in its instructions (see [Troubleshooting](#troubleshooting)).
+
 ### Claude Code
 
 ```bash
-claude mcp add capability_hub -- npx -y @neoxider/mcp-hub --catalog /abs/path/catalog.json --state /abs/path/state
+claude mcp add capability_hub -- npx -y @neoxider/mcp-hub --catalog /abs/path/catalog.json --state /abs/path/state --client claude-code
 ```
 
 Every example names the server `capability_hub`, with an underscore. Clients that prefix MCP tools with the server name then show one spelling everywhere, and a model that has seen the tool under one client does not reach for `capability-hub` under another.
+
+The initialize instructions name the tool the way the client lists it, because a model writes the name it was told. `--client opencode` gives `capability_hub_capability_hub`, `--client claude-code` gives `mcp__capability_hub__capability_hub`, and any other client — or a server key other than `capability_hub` — passes the listed name itself with `--tool-name <name>`. Without either the instructions say `capability_hub`, which is what DeepSeek Harness's native tool is called.
 
 ### Claude Desktop, Cursor and other `mcpServers` clients
 
@@ -213,6 +218,8 @@ Then start with:
 ```
 
 Not every capability belongs to every client. An entry may name the clients it belongs to with a `clients` field, a list of client ids such as `["opencode","codex"]`. Each process declares its own id at startup: `--client opencode` on the stdio server, `clientId: opencode` in the plugin Config on DeepSeek Harness. An entry that names clients is then visible only to those ids — in the tool description, in the initialize instructions, in `search` and `inspect`, and at call time, where another client gets the same answer as for a name that does not exist. A process that declares no id serves only the unrestricted entries, so a client you never pass `--client` sees exactly what it saw before.
+
+To switch an entry off for some clients instead, list them in `excludeClients`: `"excludeClients": ["claude-code"]` keeps a browser server away from Claude Code, which drives its own browser, while every other client — and a process with no id — still sees it. An exclusion wins over `clients`.
 
 ## One catalog for MCP servers and skills
 
@@ -515,6 +522,8 @@ Local servers such as Strata and llama.cpp reuse the longest unchanged *start* o
 Measured on Strata 0.2.3 (Qwen3.8-Flash-Next Coder IQ1_M, 128K, one slot) through DeepSeek Harness 0.2.1-rc.2 and this hub driving web-search-neo, with a long page that came back in two pages: every request after the first of a session reused the cached start and read only what was new — 7,701 of 7,774, 10,367 of 12,246, 16,442 of 18,328 tokens — and the next turn of the same session, a new process resuming it, reused 20,006 of 20,067.
 
 ## Troubleshooting
+
+**The model writes `<tool_call><function=capability_hub>…` into the chat and nothing runs.** An open-weight model always writes its calls as text like that; the model server (LM Studio, llama-server, a hosted endpoint) turns the text into a tool call only when the function name is one the client declared. OpenCode declares `capability_hub_capability_hub`, so a model that writes `capability_hub` gets text, or an "unavailable tool" error. From 0.13.0 the instructions use the client's own spelling: start the hub with `--client opencode` (or `--client claude-code`, or `--tool-name <name>` for anything else) and restart the client.
 
 **A skill or a long result arrives as a bare `{"name": …}` or `{"paged": true, …}`.** Some MCP clients, OpenCode among them, show a tool's `structuredContent` and ignore its text. From 0.10.0 the body travels in both: `instructions` for `skill.load`, `text` for paged results. On an older build, update the hub and restart the client's hub process.
 

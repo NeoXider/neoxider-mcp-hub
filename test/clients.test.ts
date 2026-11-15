@@ -146,3 +146,26 @@ test("a clients list left out of a document by zod would silently widen visibili
   const repository = await loadedCatalog(catalogPath, stateDir, "claude");
   assert.deepEqual(repository.all().map((entry) => entry.name), ["open-skill"], "the field must survive the schema round trip");
 });
+
+test("excludeClients hides an entry from the ids it names, and wins over clients", async () => {
+  const { catalogPath, stateDir } = await fixture();
+  const raw = open(await (await import("node:fs/promises")).readFile(catalogPath, "utf8"));
+  const entries = raw["entries"] as Record<string, unknown>[];
+  // Claude Code drives its own browser, so a browser server can stay off for it alone.
+  entries[0]!.excludeClients = ["claude-code"];
+  entries[1]!.excludeClients = ["codex"];
+  await writeFile(catalogPath, JSON.stringify(raw), "utf8");
+
+  const claude = await loadedCatalog(catalogPath, stateDir, "claude-code");
+  assert.deepEqual(claude.all().map((entry) => entry.name), [], "hidden from the id it names");
+  assert.equal(claude.get("open-skill"), undefined, "and refused where names are looked up");
+  assert.doesNotMatch(describeHub(claude), /open-skill/);
+
+  const opencode = await loadedCatalog(catalogPath, stateDir, "opencode");
+  assert.deepEqual(opencode.all().map((entry) => entry.name), ["open-skill"], "every other id still sees it");
+  const unscoped = await loadedCatalog(catalogPath, stateDir);
+  assert.deepEqual(unscoped.all().map((entry) => entry.name), ["open-skill"], "a process without an id is not excluded");
+
+  const codex = await loadedCatalog(catalogPath, stateDir, "codex");
+  assert.deepEqual(codex.all().map((entry) => entry.name), ["open-skill"], "an exclusion beats the clients list");
+});
