@@ -89,6 +89,8 @@ test("instructions name the tool the way the client declares it", async () => {
   assert.equal(declaredToolName("claude-code"), "mcp__capability_hub__capability_hub");
   assert.equal(declaredToolName("codex"), "capability_hub", "an unknown naming keeps the tool's own name");
   assert.match(opencode, /only capability_hub_capability_hub loads them/, "not the client's own skill tool");
+  assert.match(opencode, /Always call it by exactly that name through the tool-calling interface; never write a call as <tool_call> text/, "a long chat is told not to drift");
+  assert.doesNotMatch(hubInstructions(repository) ?? "", /<tool_call>/, "the default name needs no such rule");
   assert.equal(hubInstructions(repository), hubInstructions(repository, "capability_hub"), "the default is unchanged");
 });
 

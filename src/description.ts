@@ -99,6 +99,15 @@ export function declaredToolName(clientId?: string): string {
   return (clientId === undefined ? undefined : CLIENT_TOOL_NAMES[clientId]) ?? HUB_TOOL_NAME;
 }
 
+// A long chat drifts: after dozens of turns a local model wrote the bare "capability_hub"
+// it had seen in older messages, and the call stayed text. For a client whose declared
+// name differs from the tool's own, the instructions say outright to keep the declared
+// name and to call through the tool interface; the default name needs no such rule.
+function callRule(toolName: string): string {
+  if (toolName === HUB_TOOL_NAME) return "";
+  return ` Always call it by exactly that name through the tool-calling interface; never write a call as <tool_call> text and never shorten the name, even if earlier messages in this chat did.`;
+}
+
 // The MCP `instructions` a server returns at initialize. Hosts such as Claude Code put
 // them in the system prompt, and that is the one place a model reads before its first
 // turn: with tool search on, Claude Code defers the tool description itself until the
@@ -119,7 +128,9 @@ export function hubInstructions(repository: CatalogRepository, toolName = HUB_TO
     // for a hub skill first and got an error.
     `${toolName} holds skills: task instructions that stay out of your context until loaded, and only ${toolName} loads them. ` +
     `Check them at the start of every task, and when one fits, call ${toolName} with {"action":"skill.load","name":"<skill>"} ` +
-    "before you begin and follow what it returns. MCP servers in the same catalog start on demand; the tool description lists them.\n" +
+    "before you begin and follow what it returns. MCP servers in the same catalog start on demand; the tool description lists them." +
+    callRule(toolName) +
+    "\n" +
     skillListing(skills, "Skills")
   );
 }

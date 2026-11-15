@@ -13,7 +13,7 @@
   <img alt="Context saved" src="https://img.shields.io/badge/context-91.4%25%20smaller-49e7c6" />
   <img alt="Accuracy" src="https://img.shields.io/badge/accuracy-96.4%25%20vs%2096.4%25-49e7c6" />
   <a href="https://www.npmjs.com/package/@neoxider/mcp-hub"><img alt="npm" src="https://img.shields.io/npm/v/@neoxider/mcp-hub?color=8b79ff" /></a>
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.13.0-8b79ff" /></a>
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.13.1-8b79ff" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
 </p>
 
@@ -523,7 +523,7 @@ Measured on Strata 0.2.3 (Qwen3.8-Flash-Next Coder IQ1_M, 128K, one slot) throug
 
 ## Troubleshooting
 
-**The model writes `<tool_call><function=capability_hub>…` into the chat and nothing runs.** An open-weight model always writes its calls as text like that; the model server (LM Studio, llama-server, a hosted endpoint) turns the text into a tool call only when the function name is one the client declared. OpenCode declares `capability_hub_capability_hub`, so a model that writes `capability_hub` gets text, or an "unavailable tool" error. From 0.13.0 the instructions use the client's own spelling: start the hub with `--client opencode` (or `--client claude-code`, or `--tool-name <name>` for anything else) and restart the client.
+**The model writes `<tool_call><function=capability_hub>…` into the chat and nothing runs.** An open-weight model always writes its calls as text like that; the model server (LM Studio, llama-server, a hosted endpoint) turns the text into a tool call only when the function name is one the client declared. OpenCode declares `capability_hub_capability_hub`, so a model that writes `capability_hub` gets text, or an "unavailable tool" error. From 0.13.0 the instructions use the client's own spelling: start the hub with `--client opencode` (or `--client claude-code`, or `--tool-name <name>` for anything else) and restart the client. A long chat can still drift back to the short name from older messages; 0.13.1 adds a rule against that to the instructions, and for OpenCode a plugin that answers such a reply with one message naming the real tool and repeating the arguments. Enable it with `"plugin": ["file:///abs/path/to/checkout/dist/src/opencode-plugin.js"]` in the opencode config (`CAPABILITY_HUB_TEXT_RECOVERY=0` turns it off).
 
 **A skill or a long result arrives as a bare `{"name": …}` or `{"paged": true, …}`.** Some MCP clients, OpenCode among them, show a tool's `structuredContent` and ignore its text. From 0.10.0 the body travels in both: `instructions` for `skill.load`, `text` for paged results. On an older build, update the hub and restart the client's hub process.
 

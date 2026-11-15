@@ -5,6 +5,29 @@ All notable changes to NeoXider MCP Hub are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-11-16
+
+### Fixed
+
+- **A long OpenCode chat drifted back to the bare name.** After 0.13.0 a local model
+  (Qwen3.8 Flash behind Strata) called `capability_hub_capability_hub` correctly five
+  times, then wrote `<function=capability_hub>` twice in a chat whose older messages
+  held written calls, and each reply stayed text. The initialize instructions of a client
+  with its own tool name now add a rule: call it by exactly that name through the
+  tool-calling interface, never as `<tool_call>` text, never shortened, even when earlier
+  messages did. The default name is unchanged.
+
+### Added
+
+- **An OpenCode plugin that answers a written hub call.** OpenCode has no hook that
+  turns text into a tool call, so `dist/src/opencode-plugin.js` adds one short message to
+  a stopped session whose last reply ends in a written hub call: it names the tool as
+  OpenCode lists it and repeats the arguments the model meant, and the next turn makes the
+  real call. It answers a given reply once, a session at most twice in a row, skips
+  aborted turns and subagents, and is switched off
+  with `CAPABILITY_HUB_TEXT_RECOVERY=0`. Load it with
+  `"plugin": ["file:///<checkout>/dist/src/opencode-plugin.js"]` in the opencode config.
+
 ## [0.13.0] - 2026-11-15
 
 ### Fixed
